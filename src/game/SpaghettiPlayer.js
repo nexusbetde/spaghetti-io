@@ -18,8 +18,8 @@ export default class SpaghettiPlayer {
     this.headY = y;
 
     // === Bewegung ===
-    this.baseSpeed = options.baseSpeed ?? 3.2;   // Pixel pro Frame bei 60 FPS
-    this.boostSpeed = options.boostSpeed ?? 6.0; // Boost = fast doppelt so schnell
+    this.baseSpeed = options.baseSpeed ?? 3.84;  // 20% schneller als zuvor (3.2)
+    this.boostSpeed = options.boostSpeed ?? 7.2; // 20% schneller als zuvor (6.0)
     this.isBoosting = false;
 
     // === Koerper-Konfiguration ===

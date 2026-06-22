@@ -17,10 +17,10 @@ export const BOT_PALETTES = [
 ];
 
 // Bot-Konstanten
-const BOT_BASE_SPEED = 2.6;      // ~19% langsamer als Player (3.2)
-const BOT_BOOST_SPEED = 4.5;     // unbenutzt — Boost ist deaktiviert
-const WALL_AVOID_MARGIN = 180;   // ab dieser Distanz von der Wand setzt Repulsion ein
-const SNAKE_AVOID_RADIUS = 160;  // ab dieser Distanz zu fremden Koerpern setzt Repulsion ein
+const BOT_BASE_SPEED = 3.12;     // 20% schneller (war 2.6), aber ~19% langsamer als Player (3.84)
+const BOT_BOOST_SPEED = 5.4;     // unbenutzt — Boost ist deaktiviert
+const WALL_AVOID_MARGIN = 216;   // 20% groesser (war 180), da hoehere Speeds = weniger Reaktionszeit
+const SNAKE_AVOID_RADIUS = 192;  // 20% groesser (war 160), da hoehere Speeds = weniger Reaktionszeit
 const HEAD_REPULSION_BOOST = 1.6; // fremde Koepfe sind gefaehrlicher als Koerper-Segmente
 const REPULSION_WEIGHT = 1.5;    // wie stark Repulsion das Ziel ueberlagert
 
