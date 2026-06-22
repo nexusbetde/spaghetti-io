@@ -172,6 +172,38 @@ export default class SpaghettiPlayer {
   }
 
   /**
+   * Spieler waechst — fuegt zusaetzliche Segmente hinten an.
+   * Wird aufgerufen, wenn ein Fleischbaellchen gegessen wird.
+   *
+   * @param {number} amount - Anzahl neuer Segmente
+   */
+  grow(amount = 1) {
+    this.segmentCount += amount;
+
+    // History muss lang genug sein, damit die neuen hinteren Segmente
+    // tatsaechlich eine Position zum Sitzen haben.
+    const maxHistory = this.segmentCount * this.segmentSpacing + 5;
+    if (this.pathHistory.length < maxHistory) {
+      // Mit der letzten bekannten Position auffuellen — die neuen Segmente
+      // erscheinen so erst mal am Schwanz und wachsen dann sichtbar nach.
+      const last = this.pathHistory[this.pathHistory.length - 1] ?? {
+        x: this.headX,
+        y: this.headY
+      };
+      while (this.pathHistory.length < maxHistory) {
+        this.pathHistory.push({ x: last.x, y: last.y });
+      }
+    }
+  }
+
+  /**
+   * Aktuelle Laenge der Schlange (Anzahl Segmente).
+   */
+  get length() {
+    return this.segmentCount;
+  }
+
+  /**
    * Sauberes Aufraeumen — wichtig fuer spaeter, wenn wir Scenes wechseln.
    */
   destroy() {
