@@ -55,7 +55,7 @@ spaghetti-io/
 ## Entwicklungs-Roadmap
 
 - [x] Schritt 1: Projekt-Setup
-- [ ] Schritt 2: Spaghetti-Spieler steuern
+- [x] Schritt 2: Spaghetti-Spieler steuern (Maus/Touch + Boost)
 - [ ] Schritt 3: Fleischbaellchen essen und wachsen
 - [ ] Schritt 4: Kollision und Game Over
 - [ ] Schritt 5: KI-Bots als Gegner
