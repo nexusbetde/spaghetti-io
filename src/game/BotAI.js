@@ -106,41 +106,72 @@ export default class BotAI {
     }
 
     // 4) Repulsion: andere Snakes (Koepfe + sparse abgetastete Koerper)
+    // WAEHREND EIGENEM RAMPAGE: Snake-Vermeidung deaktiviert — Bot ignoriert
+    // andere Schlangen und wird so zum "Killer" der einfach durchrennt.
     const radSq = SNAKE_AVOID_RADIUS * SNAKE_AVOID_RADIUS;
+    const isRampaging = this.snake.isRampaging;
 
-    for (const other of otherSnakes) {
-      if (!other || other === this.snake || other.isDead) continue;
+    if (!isRampaging) {
+      for (const other of otherSnakes) {
+        if (!other || other === this.snake || other.isDead) continue;
 
-      // Fremder Kopf — gefaehrlicher (HEAD_REPULSION_BOOST)
-      this.addRepulsion(head, other.headX, other.headY, radSq, HEAD_REPULSION_BOOST, (rx, ry) => {
-        repX += rx;
-        repY += ry;
-      });
+        // Fremder Kopf — gefaehrlicher (HEAD_REPULSION_BOOST)
+        this.addRepulsion(head, other.headX, other.headY, radSq, HEAD_REPULSION_BOOST, (rx, ry) => {
+          repX += rx;
+          repY += ry;
+        });
 
-      // Koerper-Segmente sparse abtasten fuer Performance
-      const step = Math.max(2, Math.floor(other.segmentCount / 10));
-      for (let i = 0; i < other.segmentCount; i += step) {
-        const idx = i * other.segmentSpacing;
-        if (idx >= other.pathHistory.length) continue;
-        const seg = other.pathHistory[idx];
+        // Koerper-Segmente sparse abtasten fuer Performance
+        const step = Math.max(2, Math.floor(other.segmentCount / 10));
+        for (let i = 0; i < other.segmentCount; i += step) {
+          const idx = i * other.segmentSpacing;
+          if (idx >= other.pathHistory.length) continue;
+          const seg = other.pathHistory[idx];
+          this.addRepulsion(head, seg.x, seg.y, radSq, 1.0, (rx, ry) => {
+            repX += rx;
+            repY += ry;
+          });
+        }
+      }
+    } else {
+      // Beim Rampage: jage stattdessen die naechste lebende Schlange
+      let prey = null;
+      let preyDist = Infinity;
+      for (const other of otherSnakes) {
+        if (!other || other === this.snake || other.isDead) continue;
+        const d = Math.hypot(other.headX - head.x, other.headY - head.y);
+        if (d < preyDist) {
+          preyDist = d;
+          prey = other;
+        }
+      }
+      if (prey && preyDist < 600) {
+        // Replace goal with the prey's head position
+        goalDx = prey.headX - head.x;
+        goalDy = prey.headY - head.y;
+        const len = Math.hypot(goalDx, goalDy);
+        if (len > 0.01) {
+          goalDx /= len;
+          goalDy /= len;
+        }
+      }
+    }
+
+    // 5) Eigene Koerper-Segmente (Self-Avoidance) — auch waehrend Rampage
+    // unnoetig, weil Self-Collision dann eh ausgeschaltet ist
+    // 5) Eigene Koerper-Segmente (Self-Avoidance) — auch waehrend Rampage
+    // unnoetig, weil Self-Collision dann eh ausgeschaltet ist
+    if (!isRampaging) {
+      const selfStep = Math.max(2, Math.floor(this.snake.segmentCount / 10));
+      for (let i = 12; i < this.snake.segmentCount; i += selfStep) {
+        const idx = i * this.snake.segmentSpacing;
+        if (idx >= this.snake.pathHistory.length) continue;
+        const seg = this.snake.pathHistory[idx];
         this.addRepulsion(head, seg.x, seg.y, radSq, 1.0, (rx, ry) => {
           repX += rx;
           repY += ry;
         });
       }
-    }
-
-    // 5) Eigene Koerper-Segmente (Self-Avoidance) — vermeidet das Hineinfahren
-    // in den eigenen Schwanz bei langer Schlange
-    const selfStep = Math.max(2, Math.floor(this.snake.segmentCount / 10));
-    for (let i = 12; i < this.snake.segmentCount; i += selfStep) {
-      const idx = i * this.snake.segmentSpacing;
-      if (idx >= this.snake.pathHistory.length) continue;
-      const seg = this.snake.pathHistory[idx];
-      this.addRepulsion(head, seg.x, seg.y, radSq, 1.0, (rx, ry) => {
-        repX += rx;
-        repY += ry;
-      });
     }
 
     // 6) Kombiniere Ziel-Richtung + Repulsion

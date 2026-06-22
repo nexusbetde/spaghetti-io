@@ -255,6 +255,104 @@ export default class SoundManager {
   }
 
   /**
+   * Bassiger Pop + hoher Sparkle beim Truffle (Mega-Bällchen).
+   */
+  playMegaEat() {
+    const ctx = this.audioReady();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const dest = this.masterGain;
+
+    // Tiefer Pop
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400, t);
+    osc.frequency.exponentialRampToValueAtTime(140, t + 0.18);
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.32, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    osc.connect(gain).connect(dest);
+    osc.start(t);
+    osc.stop(t + 0.24);
+
+    // Hoher Sparkle
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(1500, t + 0.02);
+    osc2.frequency.exponentialRampToValueAtTime(2400, t + 0.12);
+    gain2.gain.setValueAtTime(0, t + 0.02);
+    gain2.gain.linearRampToValueAtTime(0.14, t + 0.03);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    osc2.connect(gain2).connect(dest);
+    osc2.start(t + 0.02);
+    osc2.stop(t + 0.2);
+  }
+
+  /**
+   * Epische Rampage-Aktivierung: Power-Chord + Highsweep.
+   * Spielt wenn der Player ein Chili-Pepper isst.
+   */
+  playRampageStart() {
+    const ctx = this.audioReady();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const dest = this.masterGain;
+
+    // A-Major Power-Chord (A2, E3, A3, C#4)
+    const notes = [110, 165, 220, 277];
+    notes.forEach((freq) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.07, t + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+      osc.connect(gain).connect(dest);
+      osc.start(t);
+      osc.stop(t + 0.7);
+    });
+
+    // Aufsteigender Highsweep obendrauf
+    const sweep = ctx.createOscillator();
+    const sweepGain = ctx.createGain();
+    sweep.type = 'triangle';
+    sweep.frequency.setValueAtTime(400, t);
+    sweep.frequency.exponentialRampToValueAtTime(2000, t + 0.5);
+    sweepGain.gain.setValueAtTime(0, t);
+    sweepGain.gain.linearRampToValueAtTime(0.1, t + 0.1);
+    sweepGain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+    sweep.connect(sweepGain).connect(dest);
+    sweep.start(t);
+    sweep.stop(t + 0.6);
+  }
+
+  /**
+   * Schneller Zap-Sound fuer jeden Kill waehrend des Rampage-Modes.
+   */
+  playRampageKill() {
+    const ctx = this.audioReady();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const dest = this.masterGain;
+
+    // Hoher absteigender Sawtooth
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(2000, t);
+    osc.frequency.exponentialRampToValueAtTime(400, t + 0.1);
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.18, t + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    osc.connect(gain).connect(dest);
+    osc.start(t);
+    osc.stop(t + 0.14);
+  }
+
+  /**
    * Helper: gibt den Context zurueck wenn alles ready ist, sonst null.
    * Versteckt die three guards (muted / no-ctx / suspended).
    */

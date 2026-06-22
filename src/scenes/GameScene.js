@@ -157,19 +157,38 @@ export default class GameScene extends Phaser.Scene {
     const inGracePeriod = this.time.now - this.spawnTime < SPAWN_GRACE_MS;
 
     if (!inGracePeriod) {
-      if (this.player.checkWallCollision(this.worldBounds)) {
-        this.die('wall');
-        return;
-      }
-      if (this.player.checkSelfCollision(SELF_COLLISION_SAFE_SEGMENTS)) {
-        this.die('self');
-        return;
-      }
-      for (const bot of this.bots) {
-        if (bot.snake.isDead) continue;
-        if (this.player.checkCollisionWith(bot.snake)) {
-          this.die('snake');
+      // Spieler-Kollisionen — abhaengig vom Rampage-Status
+      if (!this.player.isRampaging) {
+        // Normaler Spieler kann sterben
+        if (this.player.checkWallCollision(this.worldBounds)) {
+          this.die('wall');
           return;
+        }
+        if (this.player.checkSelfCollision(SELF_COLLISION_SAFE_SEGMENTS)) {
+          this.die('self');
+          return;
+        }
+        for (const bot of this.bots) {
+          if (bot.snake.isDead) continue;
+          if (this.player.checkCollisionWith(bot.snake)) {
+            // Wenn der Bot RAMPAGT, sterben wir auch nicht (beide rampagen waere
+            // hier aber unmoeglich) — sonst Tod. Bot-Rampage wuerde uns trotzdem
+            // hier killen weil er ja in unseren Koerper rennen kann.
+            this.die('snake');
+            return;
+          }
+        }
+      } else {
+        // RAMPAGE: Player ist unverwundbar, aber bei Kontakt mit anderen
+        // Schlangen sterben DIE — ausser sie rampagen auch.
+        for (const bot of this.bots) {
+          if (bot.snake.isDead) continue;
+          if (this.player.checkCollisionWith(bot.snake)) {
+            if (!bot.snake.isRampaging) {
+              this.killBot(bot, 'rampage');
+              this.awardRampageKill(bot.snake.headX, bot.snake.headY);
+            }
+          }
         }
       }
       this.processBotCollisions();
@@ -179,9 +198,29 @@ export default class GameScene extends Phaser.Scene {
     this.processMeatballs();
 
     // 6) HUD-Updates
-    this.boostIndicator.setVisible(this.player.isBoosting);
+    this.boostIndicator.setVisible(this.player.isBoosting && !this.player.isRampaging);
     this.lengthText.setText(`${t('hud_length')}: ${this.player.length}`);
     this.leaderboard.update(this.collectLeaderboardEntries());
+    this.updateRampageHUD();
+  }
+
+  updateRampageHUD() {
+    const rampaging = this.player.isRampaging;
+    if (rampaging) {
+      const seconds = Math.ceil(this.player.rampageMillisLeft() / 1000);
+      this.rampageHUD.setText(`RAMPAGE ${Math.max(0, seconds)}`);
+      this.rampageHUD.setVisible(true);
+      if (!this.rampageVignette.visible) {
+        this.rampageVignette.setVisible(true);
+        this.rampageVignetteTween.restart();
+      }
+    } else {
+      if (this.rampageHUD.visible) this.rampageHUD.setVisible(false);
+      if (this.rampageVignette.visible) {
+        this.rampageVignette.setVisible(false);
+        this.rampageVignetteTween.pause();
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -262,30 +301,86 @@ export default class GameScene extends Phaser.Scene {
       if (bot.snake.isDead) continue;
       const snake = bot.snake;
 
-      if (snake.checkWallCollision(this.worldBounds)) {
-        this.killBot(bot, 'wall');
-        continue;
+      // Rampagender Bot ist unverwundbar — Wand/Self ignorieren
+      if (!snake.isRampaging) {
+        if (snake.checkWallCollision(this.worldBounds)) {
+          this.killBot(bot, 'wall');
+          continue;
+        }
+        if (snake.checkSelfCollision(SELF_COLLISION_SAFE_SEGMENTS)) {
+          this.killBot(bot, 'self');
+          continue;
+        }
       }
-      if (snake.checkSelfCollision(SELF_COLLISION_SAFE_SEGMENTS)) {
-        this.killBot(bot, 'self');
-        continue;
-      }
+
+      // Vs. Player-Body
       if (snake.checkCollisionWith(this.player)) {
-        this.killBot(bot, 'player');
-        this.awardKillBonus(snake.headX, snake.headY);
-        continue;
+        if (snake.isRampaging) {
+          // Rampagender Bot rennt in Player — Player stirbt (sofern nicht rampagend)
+          if (!this.player.isRampaging) {
+            this.die('snake');
+            return;
+          }
+          // Beide rampagen — kein Tod, einfach durchziehen
+        } else {
+          // Bot stirbt am Player-Body, Player bekommt Kill-Bonus
+          this.killBot(bot, 'player');
+          this.awardKillBonus(snake.headX, snake.headY);
+          continue;
+        }
       }
+
+      // Vs. andere Bots
       let killed = false;
       for (const other of this.bots) {
         if (other === bot || other.snake.isDead) continue;
         if (snake.checkCollisionWith(other.snake)) {
-          this.killBot(bot, 'bot');
-          killed = true;
-          break;
+          if (snake.isRampaging) {
+            // Rampagender Bot kann anderen Bot killen (wenn der nicht auch rampagt)
+            if (!other.snake.isRampaging) {
+              this.killBot(other, 'rampage_bot');
+            }
+            // selbst nicht killen
+          } else {
+            this.killBot(bot, 'bot');
+            killed = true;
+            break;
+          }
         }
       }
       if (killed) continue;
     }
+  }
+
+  /**
+   * Belohnung wenn der Spieler im Rampage einen Bot killt.
+   */
+  awardRampageKill(x, y) {
+    this.score += PLAYER_KILL_BONUS;
+    this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
+    this.popScore();
+    this.sfx?.playRampageKill();
+
+    const txt = this.add
+      .text(x, y, `+${PLAYER_KILL_BONUS} RAMPAGE`, {
+        fontFamily: 'Arial Black, sans-serif',
+        fontSize: '24px',
+        color: '#ff5555',
+        stroke: '#000000',
+        strokeThickness: 4
+      })
+      .setOrigin(0.5)
+      .setDepth(30);
+
+    this.tweens.add({
+      targets: txt,
+      y: y - 80,
+      alpha: 0,
+      scale: 1.3,
+      duration: 1200,
+      ease: 'Cubic.easeOut',
+      onComplete: () => txt.destroy()
+    });
   }
 
   killBot(bot, cause) {
@@ -476,8 +571,19 @@ export default class GameScene extends Phaser.Scene {
       const distToPlayer = Math.hypot(x - this.player.headX, y - this.player.headY);
       if (distToPlayer >= SPAWN_MIN_DIST_FROM_PLAYER) break;
     }
-    const type = Meatball.randomType();
+
+    // Truffle und Chili haben Caps — pickType prueft sie
+    const counts = this.countSpecialMeatballs();
+    const type = Meatball.pickType(counts);
     this.meatballs.push(new Meatball(this, x, y, type));
+  }
+
+  countSpecialMeatballs() {
+    const counts = { truffle: 0, chili: 0 };
+    for (const m of this.meatballs) {
+      if (counts[m.type] !== undefined) counts[m.type]++;
+    }
+    return counts;
   }
 
   processMeatballs() {
@@ -514,24 +620,86 @@ export default class GameScene extends Phaser.Scene {
   handleMeatballEaten(meatball, idx, snake) {
     snake.grow(meatball.growth);
 
+    // Chili-Pepper aktiviert Rampage-Mode (auch fuer Bots!)
+    if (meatball.type === 'chili') {
+      snake.activateRampage(meatball.rampageDuration);
+      if (snake === this.player) {
+        this.sfx?.playRampageStart();
+        this.showRampageStartFlash();
+      } else {
+        // Ein Bot hat den Chili — leiser Sound, damit Spieler gewarnt ist
+        this.sfx?.playRampageStart();
+      }
+    }
+
     if (snake === this.player) {
       this.score += meatball.value;
       this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
       this.popScore();
-      this.sfx?.playEat(meatball.type === 'golden');
-      this.showEatBurst(meatball.x, meatball.y, meatball.value, meatball.type === 'golden');
+
+      // Type-spezifische Sounds
+      if (meatball.type === 'truffle') {
+        this.sfx?.playMegaEat();
+      } else if (meatball.type !== 'chili') {
+        // chili spielt schon playRampageStart
+        this.sfx?.playEat(meatball.type === 'golden');
+      }
+
+      const isSpecial = meatball.type === 'golden' || meatball.type === 'truffle' || meatball.type === 'chili';
+      this.showEatBurst(meatball.x, meatball.y, meatball.value, isSpecial, meatball.type);
     }
 
     meatball.destroy();
     this.meatballs.splice(idx, 1);
   }
 
-  showEatBurst(x, y, points, isGolden) {
+  /**
+   * Grosser zentraler RAMPAGE-Flash beim Start. Vorm HUD-Timer.
+   */
+  showRampageStartFlash() {
+    const flash = this.add
+      .text(this.scale.width / 2, this.scale.height / 2 - 40, 'RAMPAGE!', {
+        fontFamily: 'Arial Black, sans-serif',
+        fontSize: '96px',
+        color: '#ff2222',
+        stroke: '#000000',
+        strokeThickness: 10
+      })
+      .setOrigin(0.5)
+      .setDepth(60)
+      .setScrollFactor(0)
+      .setScale(0.4)
+      .setAlpha(0);
+
+    this.tweens.add({
+      targets: flash,
+      scale: { from: 0.4, to: 1.4 },
+      alpha: { from: 0, to: 1 },
+      duration: 250,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: flash,
+          alpha: 0,
+          scale: 1.8,
+          duration: 600,
+          delay: 300,
+          ease: 'Cubic.easeIn',
+          onComplete: () => flash.destroy()
+        });
+      }
+    });
+  }
+
+  showEatBurst(x, y, points, isGolden, type) {
+    const isTruffle = type === 'truffle';
+    const isChili = type === 'chili';
+
     const text = this.add
       .text(x, y, `+${points}`, {
         fontFamily: 'Arial Black, sans-serif',
-        fontSize: isGolden ? '34px' : '22px',
-        color: isGolden ? '#ffd700' : '#ffffff',
+        fontSize: (isGolden || isTruffle || isChili) ? '34px' : '22px',
+        color: isTruffle ? '#ba68c8' : isChili ? '#ff5555' : isGolden ? '#ffd700' : '#ffffff',
         stroke: '#000000',
         strokeThickness: 4
       })
@@ -547,8 +715,8 @@ export default class GameScene extends Phaser.Scene {
       onComplete: () => text.destroy()
     });
 
-    const burstColor = isGolden ? 0xffd700 : 0xcd853f;
-    const particleCount = isGolden ? 10 : 6;
+    const burstColor = isTruffle ? 0xba68c8 : isChili ? 0xff5555 : isGolden ? 0xffd700 : 0xcd853f;
+    const particleCount = (isGolden || isTruffle || isChili) ? 10 : 6;
 
     for (let i = 0; i < particleCount; i++) {
       const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.3;
@@ -830,6 +998,39 @@ export default class GameScene extends Phaser.Scene {
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
+    });
+
+    // Rampage-HUD (zentriert oben, aktiv waehrend Rampage)
+    this.rampageHUD = this.add
+      .text(this.scale.width / 2, 100, '', {
+        fontFamily: 'Arial Black, sans-serif',
+        fontSize: '54px',
+        color: '#ff2222',
+        stroke: '#000000',
+        strokeThickness: 7
+      })
+      .setOrigin(0.5)
+      .setDepth(21)
+      .setScrollFactor(0)
+      .setVisible(false);
+
+    // Rampage-Vignette: roter Rand um den Bildschirm waehrend Rampage
+    this.rampageVignette = this.add
+      .rectangle(this.scale.width / 2, this.scale.height / 2, this.scale.width, this.scale.height, 0xff0000, 0)
+      .setStrokeStyle(24, 0xff2222, 0.55)
+      .setDepth(45)
+      .setScrollFactor(0)
+      .setVisible(false);
+
+    // Vignette pulsiert sanft
+    this.rampageVignetteTween = this.tweens.add({
+      targets: this.rampageVignette,
+      alpha: { from: 0.6, to: 1 },
+      duration: 350,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+      paused: true
     });
   }
 

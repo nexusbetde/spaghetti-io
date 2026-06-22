@@ -61,6 +61,13 @@ export default class SpaghettiPlayer {
     // Wird auf true gesetzt sobald der Spieler stirbt, stoppt update() und draw().
     this.isDead = false;
 
+    // === Rampage-Mode (Chili-Pepper Powerup) ===
+    // Solange aktiv: unsterblich, Auto-Boost, tot jeden anderen Snake bei Beruehrung
+    this.isRampaging = false;
+    this.rampageEndsAt = 0;
+    this.rampageAura = null;
+    this.rampageAuraTween = null;
+
     // === Name-Label (optional, fuer Bots oder als "You"-Marker) ===
     this.name = options.name ?? null;
     this.nameLabel = null;
@@ -87,6 +94,15 @@ export default class SpaghettiPlayer {
   update(targetX, targetY, worldBounds) {
     // Tote Spieler bewegen sich nicht mehr
     if (this.isDead) return;
+
+    // Rampage-Timeout pruefen + Auto-Boost waehrend aktiv
+    if (this.isRampaging) {
+      if (this.scene.time.now >= this.rampageEndsAt) {
+        this.deactivateRampage();
+      } else {
+        this.isBoosting = true;
+      }
+    }
 
     // 1) Bewege den Kopf in Richtung Ziel
     const dx = targetX - this.headX;
@@ -126,6 +142,16 @@ export default class SpaghettiPlayer {
     this.draw();
     this.updateEyes();
     this.updateNameLabel();
+    this.updateRampageAura();
+  }
+
+  /**
+   * Positioniert die Rampage-Aura am Kopf, falls aktiv.
+   */
+  updateRampageAura() {
+    if (this.rampageAura && this.isRampaging) {
+      this.rampageAura.setPosition(this.headX, this.headY);
+    }
   }
 
   /**
@@ -330,6 +356,11 @@ export default class SpaghettiPlayer {
     this.isDead = false;
     this.isBoosting = false;
 
+    // Rampage-Status zuruecksetzen
+    if (this.isRampaging) {
+      this.deactivateRampage();
+    }
+
     if (options.segmentCount !== undefined) {
       this.segmentCount = options.segmentCount;
     } else {
@@ -382,6 +413,7 @@ export default class SpaghettiPlayer {
     this.pupilLeft.setVisible(visible);
     this.pupilRight.setVisible(visible);
     if (this.nameLabel) this.nameLabel.setVisible(visible);
+    if (this.rampageAura) this.rampageAura.setVisible(visible && this.isRampaging);
   }
 
   /**
@@ -390,6 +422,75 @@ export default class SpaghettiPlayer {
   kill() {
     this.isDead = true;
     this.isBoosting = false;
+    this.deactivateRampage();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rampage-Mode (Chili-Pepper Powerup)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Aktiviert den Rampage-Mode fuer duration ms.
+   * Effekt: unsterblich, Auto-Boost, todbringend bei Body-Kontakt.
+   */
+  activateRampage(duration = 3000) {
+    const now = this.scene.time.now;
+    // Wenn schon aktiv: verlaengern statt neu setzen
+    if (this.isRampaging) {
+      this.rampageEndsAt = Math.max(this.rampageEndsAt, now + duration);
+      return;
+    }
+
+    this.isRampaging = true;
+    this.rampageEndsAt = now + duration;
+
+    // Aura erstellen wenn noch nicht da
+    if (!this.rampageAura) {
+      this.rampageAura = this.scene.add
+        .circle(this.headX, this.headY, this.headRadius * 2.2, 0xff2222, 0.32)
+        .setDepth(4);
+      this.rampageAura.setStrokeStyle(3, 0xff5555, 0.85);
+    } else {
+      this.rampageAura.setPosition(this.headX, this.headY);
+      this.rampageAura.setVisible(true);
+    }
+
+    // Pulsierende Aura
+    if (this.rampageAuraTween) this.rampageAuraTween.stop();
+    this.rampageAuraTween = this.scene.tweens.add({
+      targets: this.rampageAura,
+      scale: { from: 0.85, to: 1.25 },
+      alpha: { from: 0.32, to: 0.6 },
+      duration: 280,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+  }
+
+  deactivateRampage() {
+    if (!this.isRampaging) return;
+    this.isRampaging = false;
+    this.rampageEndsAt = 0;
+    if (this.rampageAuraTween) {
+      this.rampageAuraTween.stop();
+      this.rampageAuraTween = null;
+    }
+    if (this.rampageAura) {
+      this.rampageAura.setVisible(false);
+      this.rampageAura.setScale(1);
+      this.rampageAura.setAlpha(0.32);
+    }
+    // Boost wieder aus — caller kann selbst neu aktivieren wenn gewollt
+    this.isBoosting = false;
+  }
+
+  /**
+   * Wieviele ms ist die Rampage noch aktiv?
+   */
+  rampageMillisLeft() {
+    if (!this.isRampaging) return 0;
+    return Math.max(0, this.rampageEndsAt - this.scene.time.now);
   }
 
   /**
@@ -402,5 +503,7 @@ export default class SpaghettiPlayer {
     this.pupilLeft.destroy();
     this.pupilRight.destroy();
     if (this.nameLabel) this.nameLabel.destroy();
+    if (this.rampageAuraTween) this.rampageAuraTween.stop();
+    if (this.rampageAura) this.rampageAura.destroy();
   }
 }

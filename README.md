@@ -60,7 +60,9 @@ spaghetti-io/
 - [x] Schritt 3.5: CrazyGames Polish (i18n, Tutorial, Mobile-Boost-Button)
 - [x] Schritt 4: Kollision, Tod, Game Over, Highscore, Restart
 - [x] Schritt 5: KI-Bots, Multi-Snake-PvP, Leaderboard
-- [ ] Schritt 6: Polish, Sounds, Crazy Games SDK
+- [x] Schritt 6: Sounds + Polish
+- [x] Schritt 7: Powerups (Truffle + Chili-Rampage)
+- [ ] Schritt 8: CrazyGames SDK + Deployment
 
 ## Deployment zu Crazy Games
 
