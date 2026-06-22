@@ -20,6 +20,7 @@ export default class SpaghettiPlayer {
     // === Bewegung ===
     this.baseSpeed = options.baseSpeed ?? 3.84;  // 20% schneller als zuvor (3.2)
     this.boostSpeed = options.boostSpeed ?? 7.2; // 20% schneller als zuvor (6.0)
+    this.rampageSpeed = options.rampageSpeed ?? 13.5; // ~1.9x boost — Komet-Modus waehrend Chili-Rampage
     this.isBoosting = false;
 
     // === Koerper-Konfiguration ===
@@ -117,7 +118,16 @@ export default class SpaghettiPlayer {
       return;
     }
 
-    const speed = this.isBoosting ? this.boostSpeed : this.baseSpeed;
+    // Speed: Rampage > Boost > Base
+    let speed;
+    if (this.isRampaging) {
+      speed = this.rampageSpeed;
+    } else if (this.isBoosting) {
+      speed = this.boostSpeed;
+    } else {
+      speed = this.baseSpeed;
+    }
+
     // Normalisierter Richtungsvektor * Geschwindigkeit
     this.headX += (dx / dist) * speed;
     this.headY += (dy / dist) * speed;
