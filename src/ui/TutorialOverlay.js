@@ -59,6 +59,9 @@ export default class TutorialOverlay {
 
     // Continue button (large, daumenfreundlich)
     this.buildContinueButton();
+
+    // Alle Tutorial-Elemente sind Screen-fixed
+    this.objects.forEach((o) => o.setScrollFactor && o.setScrollFactor(0));
   }
 
   // ===========================================================================

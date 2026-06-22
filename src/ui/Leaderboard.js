@@ -106,6 +106,9 @@ export default class Leaderboard {
       this.rows.push({ rowBg, rank, name, length });
       this.objects.push(rowBg, rank, name, length);
     }
+
+    // Leaderboard ist Screen-fixed (Kamera bewegt sich nicht mit ihm)
+    this.objects.forEach((o) => o.setScrollFactor && o.setScrollFactor(0));
   }
 
   /**

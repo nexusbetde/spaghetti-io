@@ -15,28 +15,30 @@ import {
 /**
  * GameScene — Hauptspiel mit Spieler, KI-Bots und Multi-Snake-Kollisionen.
  *
- * Schritt 5: Bots
- *  - 6 KI-Spaghetti mit verschiedenen italienischen Farben/Namen
- *  - Bots jagen Fleischbaellchen und weichen Waenden + anderen Snakes aus
- *  - Multi-Snake-Kollisionen: Kopf vs. fremder Koerper = Tod
- *  - Bot-Tod droppt Fleischbaellchen, danach Respawn nach 2-4s
- *  - Kill durch Player gibt +50 Score
- *  - Live-Leaderboard oben links
+ * Schritt 5b: Groessere Welt + Kamera + bessere Bot-AI
+ *  - World ist jetzt 2560x1440 (4x Flaeche), Kamera folgt dem Spieler weich
+ *  - HUD-Elemente auf scrollFactor(0) — bleiben am Bildschirmrand
+ *  - 8 Bots statt 6, 80 Fleischbaellchen statt 50 (passend zur groesseren Karte)
+ *  - Sichtbare Welt-Boundary in Sauce-Rot, damit der Rand spuerbar wird
  */
 
-// Spielfeld
-const MEATBALL_COUNT = 50;
+// Welt
+const WORLD_WIDTH = 2560;
+const WORLD_HEIGHT = 1440;
+
+// Spielfeld-Inhalt
+const MEATBALL_COUNT = 80;
 const MAGNET_RADIUS = 90;
-const SPAWN_MIN_DIST_FROM_PLAYER = 120;
+const SPAWN_MIN_DIST_FROM_PLAYER = 160;
+
+// Bots
+const BOT_COUNT = 8;
+const BOT_RESPAWN_DELAY_MIN = 2200;
+const BOT_RESPAWN_DELAY_MAX = 4500;
+const PLAYER_KILL_BONUS = 50;
 
 // Snake-Kollision
 const SELF_COLLISION_SAFE_SEGMENTS = 12;
-
-// Bots
-const BOT_COUNT = 6;
-const BOT_RESPAWN_DELAY_MIN = 2200;
-const BOT_RESPAWN_DELAY_MAX = 4200;
-const PLAYER_KILL_BONUS = 50;
 
 // Mobile boost button
 const BOOST_BTN_RADIUS = 55;
@@ -52,23 +54,29 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    const { width, height } = this.scale;
-
     this.isTouch = isTouchDevice();
-    this.worldBounds = { width, height };
+    this.worldBounds = { width: WORLD_WIDTH, height: WORLD_HEIGHT };
 
-    // Background
+    // === Hintergrund (fuellt die GANZE Welt, nicht nur den Viewport) ===
     this.drawCheckerboard();
+    this.drawWorldBorder();
 
-    // Player
-    this.player = new SpaghettiPlayer(this, width / 2, height / 2, {
+    // === Spieler in der Weltmitte ===
+    this.player = new SpaghettiPlayer(this, WORLD_WIDTH / 2, WORLD_HEIGHT / 2, {
       name: t('you'),
       nameColor: '#ffd700'
     });
 
-    // Direction target (updated by mouse/touch)
-    this.targetX = width / 2;
-    this.targetY = height / 2;
+    // Steuerungs-Ziel (Welt-Koordinaten)
+    this.targetX = WORLD_WIDTH / 2;
+    this.targetY = WORLD_HEIGHT / 2;
+
+    // === Kamera-Setup ===
+    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    // Unsichtbarer Follow-Target, dessen Position wir jeden Frame an den Kopf ankoppeln
+    this.cameraFollow = this.add.zone(this.player.headX, this.player.headY, 1, 1);
+    this.cameras.main.startFollow(this.cameraFollow, true, 0.14, 0.14);
+    this.cameras.main.setBackgroundColor('#2d1810');
 
     // State
     this.score = 0;
@@ -77,7 +85,6 @@ export default class GameScene extends Phaser.Scene {
     this.meatballs = [];
     this.bots = [];
 
-    // Eingaben werden waehrend Tutorial geblockt
     this.inputEnabled = false;
     this.spawnTime = this.time.now;
     this.hasMoved = false;
@@ -86,23 +93,23 @@ export default class GameScene extends Phaser.Scene {
     // Input
     this.setupInput();
 
-    // HUD
+    // HUD (alles mit scrollFactor(0))
     this.createHUD();
 
-    // Mobile boost button (only on touch devices)
+    // Mobile boost button
     this.boostButton = null;
     if (this.isTouch) {
       this.createMobileBoostButton();
     }
 
-    // Spawn meatballs and bots
+    // Spawns
     this.spawnInitialMeatballs();
     this.spawnBots();
 
-    // Leaderboard rechts neben dem Best-Badge (oder ganz oben links wenn kein Best)
+    // Leaderboard rechts oberhalb des Best-Badges (oder ganz oben links)
     this.leaderboard = new Leaderboard(this, 16, getHighScore() > 0 ? 56 : 16);
 
-    // Tutorial on first ever play, otherwise just the goal banner + hint
+    // Tutorial / Start-Hinweis
     if (!hasSeenTutorial()) {
       this.tutorial = new TutorialOverlay(this, {
         isTouch: this.isTouch,
@@ -133,12 +140,14 @@ export default class GameScene extends Phaser.Scene {
       bot.update(this.meatballs, this.snakesExcluding(bot.snake, allSnakes), this.worldBounds);
     }
 
-    // 3) Kollisionen pruefen (mit Spawn-Schonfrist)
+    // 3) Kamera ans Kopf-Follow-Target koppeln
+    this.cameraFollow.setPosition(this.player.headX, this.player.headY);
+
+    // 4) Kollisionen (mit Spawn-Schonfrist)
     const SPAWN_GRACE_MS = 800;
     const inGracePeriod = this.time.now - this.spawnTime < SPAWN_GRACE_MS;
 
     if (!inGracePeriod) {
-      // Spieler-Kollisionen (Tod = Game Over)
       if (this.player.checkWallCollision(this.worldBounds)) {
         this.die('wall');
         return;
@@ -154,22 +163,20 @@ export default class GameScene extends Phaser.Scene {
           return;
         }
       }
-
-      // Bot-Kollisionen (Tod = Respawn)
       this.processBotCollisions();
     }
 
-    // 4) Fleischbaellchen-Logik fuer alle Snakes
+    // 5) Fleischbaellchen
     this.processMeatballs();
 
-    // 5) HUD
+    // 6) HUD-Updates
     this.boostIndicator.setVisible(this.player.isBoosting);
     this.lengthText.setText(`${t('hud_length')}: ${this.player.length}`);
     this.leaderboard.update(this.collectLeaderboardEntries());
   }
 
   // ---------------------------------------------------------------------------
-  // Snake-Sammlung (Helpers)
+  // Snake-Helpers
   // ---------------------------------------------------------------------------
 
   collectActiveSnakes() {
@@ -207,9 +214,7 @@ export default class GameScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   spawnBots() {
-    // Zufaellige Auswahl von BOT_COUNT Paletten ohne Wiederholung
     const palettes = Phaser.Utils.Array.Shuffle(BOT_PALETTES.slice()).slice(0, BOT_COUNT);
-
     for (const palette of palettes) {
       const pos = this.findSafeSpawnPoint();
       this.bots.push(new BotAI(this, palette, pos.x, pos.y));
@@ -217,18 +222,16 @@ export default class GameScene extends Phaser.Scene {
   }
 
   findSafeSpawnPoint() {
-    const { width, height } = this.scale;
-    const margin = 120;
-    const minDist = 180;
+    const margin = 160;
+    const minDist = 220;
 
     let best = null;
     let bestScore = -1;
 
     for (let attempt = 0; attempt < 30; attempt++) {
-      const x = Phaser.Math.Between(margin, width - margin);
-      const y = Phaser.Math.Between(margin, height - margin);
+      const x = Phaser.Math.Between(margin, WORLD_WIDTH - margin);
+      const y = Phaser.Math.Between(margin, WORLD_HEIGHT - margin);
 
-      // Minimaler Abstand zu allen aktiven Schlangen
       let minD = Infinity;
       for (const s of this.collectActiveSnakes()) {
         const d = Math.hypot(x - s.headX, y - s.headY);
@@ -239,10 +242,10 @@ export default class GameScene extends Phaser.Scene {
         bestScore = minD;
         best = { x, y };
       }
-      if (minD >= minDist) break; // gut genug
+      if (minD >= minDist) break;
     }
 
-    return best || { x: width / 2, y: height / 2 };
+    return best || { x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2 };
   }
 
   processBotCollisions() {
@@ -250,24 +253,19 @@ export default class GameScene extends Phaser.Scene {
       if (bot.snake.isDead) continue;
       const snake = bot.snake;
 
-      // Wand
       if (snake.checkWallCollision(this.worldBounds)) {
         this.killBot(bot, 'wall');
         continue;
       }
-      // Self
       if (snake.checkSelfCollision(SELF_COLLISION_SAFE_SEGMENTS)) {
         this.killBot(bot, 'self');
         continue;
       }
-      // Player-Body
       if (snake.checkCollisionWith(this.player)) {
         this.killBot(bot, 'player');
-        // Spieler bekommt Bonus
         this.awardKillBonus(snake.headX, snake.headY);
         continue;
       }
-      // Andere Bots
       let killed = false;
       for (const other of this.bots) {
         if (other === bot || other.snake.isDead) continue;
@@ -288,14 +286,10 @@ export default class GameScene extends Phaser.Scene {
     bot.snake.kill();
     bot.snake.setVisible(false);
 
-    // Visuelle Effekte
     this.playSauceSplatter(data.headX, data.headY);
     this.playBodyDebris(data);
-
-    // Fleischbaellchen droppen
     this.dropDeathMeatballs(data.segments);
 
-    // Respawn nach Delay
     const delay = BOT_RESPAWN_DELAY_MIN + Math.random() * (BOT_RESPAWN_DELAY_MAX - BOT_RESPAWN_DELAY_MIN);
     this.time.delayedCall(delay, () => this.respawnBot(bot));
   }
@@ -304,9 +298,6 @@ export default class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     const pos = this.findSafeSpawnPoint();
     bot.snake.respawn(pos.x, pos.y);
-    // Boost-State frisch starten
-    bot.lastBoostStart = 0;
-    bot.lastBoostEnd = this.time.now;
   }
 
   awardKillBonus(x, y) {
@@ -314,7 +305,7 @@ export default class GameScene extends Phaser.Scene {
     this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
     this.popScore();
 
-    // Schwebender Bonus-Text
+    // Schwebender Bonus-Text an der Welt-Position des Kills
     const txt = this.add
       .text(x, y, `+${PLAYER_KILL_BONUS} ${t('kill_bonus')}`, {
         fontFamily: 'Arial Black, sans-serif',
@@ -376,7 +367,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Visuelle Death-Effekte (geteilt zwischen Spieler- und Bot-Tod)
+  // Visuelle Death-Effekte
   // ---------------------------------------------------------------------------
 
   playSauceSplatter(x, y) {
@@ -455,7 +446,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Fleischbaellchen
+  // Fleischbaellchen (jetzt fuer ALLE Snakes)
   // ---------------------------------------------------------------------------
 
   spawnInitialMeatballs() {
@@ -465,18 +456,15 @@ export default class GameScene extends Phaser.Scene {
   }
 
   spawnMeatball() {
-    const { width, height } = this.scale;
     const margin = 40;
-
     let x = 0;
     let y = 0;
     for (let attempt = 0; attempt < 10; attempt++) {
-      x = Phaser.Math.Between(margin, width - margin);
-      y = Phaser.Math.Between(margin, height - margin);
+      x = Phaser.Math.Between(margin, WORLD_WIDTH - margin);
+      y = Phaser.Math.Between(margin, WORLD_HEIGHT - margin);
       const distToPlayer = Math.hypot(x - this.player.headX, y - this.player.headY);
       if (distToPlayer >= SPAWN_MIN_DIST_FROM_PLAYER) break;
     }
-
     const type = Meatball.randomType();
     this.meatballs.push(new Meatball(this, x, y, type));
   }
@@ -488,7 +476,6 @@ export default class GameScene extends Phaser.Scene {
     for (let i = this.meatballs.length - 1; i >= 0; i--) {
       const m = this.meatballs[i];
 
-      // Naechste Snake-Kopf-Position finden
       let closestSnake = null;
       let closestDist = Infinity;
       for (const s of snakes) {
@@ -500,17 +487,14 @@ export default class GameScene extends Phaser.Scene {
       }
       if (!closestSnake) continue;
 
-      // Magnet-Zug
       m.updatePull(closestSnake.headX, closestSnake.headY, MAGNET_RADIUS);
 
-      // Aktuelle Distanz pruefen (kann nach Pull kleiner sein)
       const dist = Math.hypot(closestSnake.headX - m.x, closestSnake.headY - m.y);
       if (dist < closestSnake.headRadius + m.radius) {
         this.handleMeatballEaten(m, i, closestSnake);
       }
     }
 
-    // Auffuellen falls unter Soll
     while (this.meatballs.length < MEATBALL_COUNT) {
       this.spawnMeatball();
     }
@@ -519,7 +503,6 @@ export default class GameScene extends Phaser.Scene {
   handleMeatballEaten(meatball, idx, snake) {
     snake.grow(meatball.growth);
 
-    // Spieler bekommt Score-Reward und Burst-Effekt
     if (snake === this.player) {
       this.score += meatball.value;
       this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
@@ -586,23 +569,23 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Input
+  // Input — Pointer-Position via worldX/worldY (durch Kamera transformiert)
   // ---------------------------------------------------------------------------
 
   setupInput() {
     this.input.on('pointermove', (pointer) => {
       if (!this.inputEnabled) return;
       if (this.isPointerOverBoostButton(pointer)) return;
-      this.targetX = pointer.x;
-      this.targetY = pointer.y;
+      this.targetX = pointer.worldX;
+      this.targetY = pointer.worldY;
       this.markPlayerHasMoved();
     });
 
     this.input.on('pointerdown', (pointer) => {
       if (!this.inputEnabled) return;
       if (this.isPointerOverBoostButton(pointer)) return;
-      this.targetX = pointer.x;
-      this.targetY = pointer.y;
+      this.targetX = pointer.worldX;
+      this.targetY = pointer.worldY;
       this.markPlayerHasMoved();
 
       if (!this.isTouch && !this.gameOver) {
@@ -644,6 +627,7 @@ export default class GameScene extends Phaser.Scene {
     this.fadeStartHint();
   }
 
+  // Boost-Button-Position ist im SCREEN-Space (scrollFactor 0), also pointer.x verwenden.
   isPointerOverBoostButton(pointer) {
     if (!this.boostButton) return false;
     const dx = pointer.x - this.boostButton.cx;
@@ -652,15 +636,17 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Mobile boost button
+  // Mobile boost button (Screen-fixed)
   // ---------------------------------------------------------------------------
 
   createMobileBoostButton() {
-    const { width, height } = this.scale;
-    const cx = width - BOOST_BTN_MARGIN - BOOST_BTN_RADIUS;
-    const cy = height - BOOST_BTN_MARGIN - BOOST_BTN_RADIUS;
+    const cx = this.scale.width - BOOST_BTN_MARGIN - BOOST_BTN_RADIUS;
+    const cy = this.scale.height - BOOST_BTN_MARGIN - BOOST_BTN_RADIUS;
 
-    const pulseRing = this.add.circle(cx, cy, BOOST_BTN_RADIUS + 6, 0xff6b35, 0).setDepth(49);
+    const pulseRing = this.add
+      .circle(cx, cy, BOOST_BTN_RADIUS + 6, 0xff6b35, 0)
+      .setDepth(49)
+      .setScrollFactor(0);
     pulseRing.setStrokeStyle(4, 0xff6b35, 0.7);
     const pulseTween = this.tweens.add({
       targets: pulseRing,
@@ -678,13 +664,15 @@ export default class GameScene extends Phaser.Scene {
     const bg = this.add
       .circle(cx, cy, BOOST_BTN_RADIUS, 0xff6b35, 0.55)
       .setDepth(50)
+      .setScrollFactor(0)
       .setStrokeStyle(4, 0xffffff, 0.85)
       .setInteractive({ useHandCursor: true });
 
     const label = this.add
       .text(cx, cy + 2, '\u26A1', { fontSize: '54px' })
       .setOrigin(0.5)
-      .setDepth(51);
+      .setDepth(51)
+      .setScrollFactor(0);
 
     const subLabel = this.add
       .text(cx, cy + 38, t('boost_button_label'), {
@@ -695,7 +683,8 @@ export default class GameScene extends Phaser.Scene {
         strokeThickness: 3
       })
       .setOrigin(0.5)
-      .setDepth(51);
+      .setDepth(51)
+      .setScrollFactor(0);
 
     const setActive = (active) => {
       if (this.gameOver) active = false;
@@ -725,7 +714,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // HUD
+  // HUD (alles screen-fixed via scrollFactor(0))
   // ---------------------------------------------------------------------------
 
   createHUD() {
@@ -742,7 +731,8 @@ export default class GameScene extends Phaser.Scene {
         strokeThickness: 5
       })
       .setOrigin(1, 0)
-      .setDepth(20);
+      .setDepth(20)
+      .setScrollFactor(0);
 
     // Length under score
     this.lengthText = this.add
@@ -754,9 +744,10 @@ export default class GameScene extends Phaser.Scene {
         padding: { x: 10, y: 6 }
       })
       .setOrigin(1, 0)
-      .setDepth(20);
+      .setDepth(20)
+      .setScrollFactor(0);
 
-    // Best score (top left) — small badge
+    // Best (top left)
     const best = getHighScore();
     if (best > 0) {
       this.add
@@ -770,7 +761,8 @@ export default class GameScene extends Phaser.Scene {
           strokeThickness: 3
         })
         .setOrigin(0, 0)
-        .setDepth(20);
+        .setDepth(20)
+        .setScrollFactor(0);
     }
 
     // Boost indicator (center top)
@@ -784,6 +776,7 @@ export default class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(20)
+      .setScrollFactor(0)
       .setVisible(false);
 
     this.tweens.add({
@@ -797,16 +790,17 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Start-Hinweis
+  // Start-Hinweis (Screen-fixed)
   // ---------------------------------------------------------------------------
 
   showStartHint() {
-    const { width, height } = this.scale;
+    const w = this.scale.width;
+    const h = this.scale.height;
 
     const hintKey = this.isTouch ? 'start_hint_mobile' : 'start_hint_desktop';
 
     const text = this.add
-      .text(width / 2, height * 0.34, t(hintKey), {
+      .text(w / 2, h * 0.34, t(hintKey), {
         fontFamily: 'Arial Black, sans-serif',
         fontSize: '30px',
         color: '#ffffff',
@@ -815,7 +809,8 @@ export default class GameScene extends Phaser.Scene {
         align: 'center'
       })
       .setOrigin(0.5)
-      .setDepth(30);
+      .setDepth(30)
+      .setScrollFactor(0);
 
     this.tweens.add({
       targets: text,
@@ -826,11 +821,11 @@ export default class GameScene extends Phaser.Scene {
       ease: 'Sine.easeInOut'
     });
 
-    const arrow = this.add.graphics().setDepth(30);
+    const arrow = this.add.graphics().setDepth(30).setScrollFactor(0);
     arrow.lineStyle(5, 0xffd700, 1);
     arrow.fillStyle(0xffd700, 1);
-    const ax = width / 2;
-    const ay = height * 0.34 + 38;
+    const ax = w / 2;
+    const ay = h * 0.34 + 38;
     arrow.beginPath();
     arrow.moveTo(ax, ay);
     arrow.lineTo(ax, ay + 28);
@@ -867,15 +862,15 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Goal banner
+  // Goal banner (Screen-fixed)
   // ---------------------------------------------------------------------------
 
   showGoalBanner() {
-    const { width } = this.scale;
+    const w = this.scale.width;
     const cy = 110;
 
     const line1 = this.add
-      .text(width / 2, cy, t('goal_eat'), {
+      .text(w / 2, cy, t('goal_eat'), {
         fontFamily: 'Arial Black, sans-serif',
         fontSize: '28px',
         color: '#ffffff',
@@ -884,10 +879,11 @@ export default class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(20)
+      .setScrollFactor(0)
       .setAlpha(0);
 
     const line2 = this.add
-      .text(width / 2, cy + 38, t('goal_golden'), {
+      .text(w / 2, cy + 38, t('goal_golden'), {
         fontFamily: 'Arial Black, sans-serif',
         fontSize: '20px',
         color: '#ffd700',
@@ -896,6 +892,7 @@ export default class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(20)
+      .setScrollFactor(0)
       .setAlpha(0);
 
     this.tweens.add({
@@ -921,20 +918,33 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Background
+  // Hintergrund — die ganze Welt fuellen
   // ---------------------------------------------------------------------------
 
   drawCheckerboard() {
     const tileSize = 80;
-    const { width, height } = this.scale;
     const graphics = this.add.graphics().setDepth(0);
 
-    for (let y = 0; y < height; y += tileSize) {
-      for (let x = 0; x < width; x += tileSize) {
+    for (let y = 0; y < WORLD_HEIGHT; y += tileSize) {
+      for (let x = 0; x < WORLD_WIDTH; x += tileSize) {
         const isEven = ((x / tileSize) + (y / tileSize)) % 2 === 0;
-        graphics.fillStyle(isEven ? 0xc41e3a : 0xffffff, 0.12);
+        graphics.fillStyle(isEven ? 0xc41e3a : 0xffffff, 0.10);
         graphics.fillRect(x, y, tileSize, tileSize);
       }
     }
+  }
+
+  /**
+   * Sichtbarer Welt-Rand in Sauce-Rot — gibt dem Spieler ein Gefuehl
+   * dafuer wo die Wand ist, sobald die Kamera den Rand zeigt.
+   */
+  drawWorldBorder() {
+    const g = this.add.graphics().setDepth(1);
+    g.lineStyle(8, 0xc41e3a, 0.85);
+    g.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+    // Innere doppelte Linie fuer einen 'Warning'-Look
+    g.lineStyle(2, 0xffd700, 0.6);
+    g.strokeRect(12, 12, WORLD_WIDTH - 24, WORLD_HEIGHT - 24);
   }
 }

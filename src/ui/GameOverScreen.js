@@ -133,6 +133,9 @@ export default class GameOverScreen {
     // Play Again button (big, daumenfreundlich)
     // ---------------------------------------------------------------------
     this.buildPlayAgainButton(cardX, cardY + cardHeight / 2 - 60);
+
+    // GameOverScreen ist Screen-fixed — die Kamera darunter darf weiterlaufen
+    this.objects.forEach((o) => o.setScrollFactor && o.setScrollFactor(0));
   }
 
   buildStatLine(x, y, label, value, valueColor) {
