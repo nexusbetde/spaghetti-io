@@ -49,8 +49,8 @@ export const MEATBALL_TYPES = {
 
 // Spawn-Wahrscheinlichkeiten — pro neuem Spawn-Event
 const SPAWN_PROBABILITIES = {
-  chili: 0.005,    // ~0.5%
-  truffle: 0.02,   // ~2%
+  chili: 0.012,    // ~1.2% — sichtbar, aber immer noch besonders
+  truffle: 0.03,   // ~3%
   golden: 0.08     // ~8%
 };
 

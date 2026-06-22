@@ -28,7 +28,7 @@ const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 1800;
 
 // Spielfeld-Inhalt
-const MEATBALL_COUNT = 120;
+const MEATBALL_COUNT = 180;
 const MAGNET_RADIUS = 90;
 const SPAWN_MIN_DIST_FROM_PLAYER = 180;
 
@@ -558,6 +558,32 @@ export default class GameScene extends Phaser.Scene {
   spawnInitialMeatballs() {
     for (let i = 0; i < MEATBALL_COUNT; i++) {
       this.spawnMeatball();
+    }
+    // Garantierter Start: mindestens 1 Chili, 1 Truffle und 2 Golden
+    // — sonst koennte ein Spieler eine ganze Session lang die Spezial-Items
+    // nicht sehen weil RNG ungluecklich ist.
+    this.ensureMeatballOfType('chili', 1);
+    this.ensureMeatballOfType('truffle', 2);
+    this.ensureMeatballOfType('golden', 3);
+  }
+
+  /**
+   * Stellt sicher dass mindestens 'count' Baellchen vom angegebenen Typ
+   * auf der Karte sind. Tauscht 'normal'-Baellchen aus wenn noetig.
+   */
+  ensureMeatballOfType(type, count) {
+    const current = this.meatballs.filter((m) => m.type === type).length;
+    let needed = count - current;
+    if (needed <= 0) return;
+
+    for (let i = 0; i < this.meatballs.length && needed > 0; i++) {
+      if (this.meatballs[i].type !== 'normal') continue;
+      const old = this.meatballs[i];
+      const x = old.x;
+      const y = old.y;
+      old.destroy();
+      this.meatballs[i] = new Meatball(this, x, y, type);
+      needed--;
     }
   }
 
