@@ -53,6 +53,10 @@ export default class SpaghettiPlayer {
     this.eyeWhiteRight = scene.add.circle(x, y, 4.5, 0xffffff).setDepth(15);
     this.pupilLeft = scene.add.circle(x, y, 2.2, 0x000000).setDepth(16);
     this.pupilRight = scene.add.circle(x, y, 2.2, 0x000000).setDepth(16);
+
+    // === Lebensstatus ===
+    // Wird auf true gesetzt sobald der Spieler stirbt, stoppt update() und draw().
+    this.isDead = false;
   }
 
   /**
@@ -62,6 +66,9 @@ export default class SpaghettiPlayer {
    * @param {object} worldBounds - { width, height } um den Spieler im Spielfeld zu halten
    */
   update(targetX, targetY, worldBounds) {
+    // Tote Spieler bewegen sich nicht mehr
+    if (this.isDead) return;
+
     // 1) Bewege den Kopf in Richtung Ziel
     const dx = targetX - this.headX;
     const dy = targetY - this.headY;
@@ -201,6 +208,96 @@ export default class SpaghettiPlayer {
    */
   get length() {
     return this.segmentCount;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Kollisionen
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Prueft ob der Kopf die Spielfeld-Grenze beruehrt.
+   */
+  checkWallCollision(worldBounds) {
+    const r = this.headRadius;
+    return (
+      this.headX <= r ||
+      this.headX >= worldBounds.width - r ||
+      this.headY <= r ||
+      this.headY >= worldBounds.height - r
+    );
+  }
+
+  /**
+   * Prueft ob der Kopf einen Punkt des eigenen Koerpers beruehrt.
+   * Die ersten SAFE_SEGMENT_OFFSET Segmente werden ignoriert, weil sie
+   * unmittelbar hinter dem Kopf liegen — sonst wuerde der Spieler bei
+   * jeder Kurve sofort sterben.
+   */
+  checkSelfCollision(safeSegmentOffset = 12) {
+    for (let i = safeSegmentOffset; i < this.segmentCount; i++) {
+      const historyIdx = i * this.segmentSpacing;
+      if (historyIdx >= this.pathHistory.length) continue;
+
+      const pos = this.pathHistory[historyIdx];
+      const dist = Math.hypot(this.headX - pos.x, this.headY - pos.y);
+
+      // Radius dieses Segments (taper)
+      const t = i / (this.segmentCount - 1);
+      const segRadius = this.bodyRadius - t * (this.bodyRadius - this.bodyEndRadius);
+
+      // Etwas grosszuegig: 60% der kombinierten Radien
+      if (dist < (this.headRadius + segRadius) * 0.6) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Erstellt einen Schnappschuss des aktuellen Zustands fuer die Todes-Animation.
+   * Wird VOR setVisible(false) aufgerufen, damit wir die Daten noch haben.
+   */
+  captureDeathState() {
+    const segments = [];
+    for (let i = 0; i < this.segmentCount; i++) {
+      const historyIdx = i * this.segmentSpacing;
+      if (historyIdx >= this.pathHistory.length) continue;
+
+      const pos = this.pathHistory[historyIdx];
+      const t = i / (this.segmentCount - 1);
+      const radius = this.bodyRadius - t * (this.bodyRadius - this.bodyEndRadius);
+
+      segments.push({ x: pos.x, y: pos.y, radius });
+    }
+    return {
+      headX: this.headX,
+      headY: this.headY,
+      headRadius: this.headRadius,
+      headColor: this.headColor,
+      headOutline: this.headOutline,
+      bodyColor: this.bodyColor,
+      bodyOutline: this.bodyOutline,
+      segments
+    };
+  }
+
+  /**
+   * Sichtbarkeit aller Grafik-Objekte umschalten.
+   */
+  setVisible(visible) {
+    this.bodyGraphics.setVisible(visible);
+    this.eyeWhiteLeft.setVisible(visible);
+    this.eyeWhiteRight.setVisible(visible);
+    this.pupilLeft.setVisible(visible);
+    this.pupilRight.setVisible(visible);
+  }
+
+  /**
+   * Markiert den Spieler als tot — Bewegung und Zeichnen stoppen.
+   */
+  kill() {
+    this.isDead = true;
+    this.isBoosting = false;
   }
 
   /**

@@ -26,7 +26,15 @@ const messages = {
     goal_eat: 'Eat meatballs to grow!',
     goal_golden: 'Golden meatballs give bonus points!',
     // Boost button
-    boost_button_label: 'BOOST'
+    boost_button_label: 'BOOST',
+    game_over_title: 'FINITO!',
+    game_over_died_wall: 'You hit the wall!',
+    game_over_died_self: 'You bit yourself!',
+    game_over_score: 'Score',
+    game_over_length: 'Length',
+    game_over_best: 'Best',
+    game_over_new_best: 'NEW BEST!',
+    game_over_play_again: 'Play Again'
   },
   de: {
     tutorial_title: 'Steuerung',
@@ -40,7 +48,15 @@ const messages = {
     hud_boost_label: 'BOOST!',
     goal_eat: 'Friss Fleischbaellchen zum Wachsen!',
     goal_golden: 'Goldene Baellchen geben Bonuspunkte!',
-    boost_button_label: 'BOOST'
+    boost_button_label: 'BOOST',
+    game_over_title: 'FINITO!',
+    game_over_died_wall: 'Du bist in die Wand gerannt!',
+    game_over_died_self: 'Du hast dich selbst gebissen!',
+    game_over_score: 'Score',
+    game_over_length: 'Laenge',
+    game_over_best: 'Bestleistung',
+    game_over_new_best: 'NEUER REKORD!',
+    game_over_play_again: 'Nochmal spielen'
   }
 };
 

@@ -39,3 +39,35 @@ export function markTutorialSeen() {
     // Storage disabled — tutorial will show again next time, which is fine.
   }
 }
+
+// ---------------------------------------------------------------------------
+// Highscore
+// ---------------------------------------------------------------------------
+
+const HIGHSCORE_KEY = 'spaghetti-io.highscore';
+
+export function getHighScore() {
+  try {
+    const raw = localStorage.getItem(HIGHSCORE_KEY);
+    const n = parseInt(raw ?? '0', 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+/**
+ * Sets a new high score if it beats the existing one.
+ * @returns true if the score was actually saved (i.e. it was a new best).
+ */
+export function maybeSetHighScore(score) {
+  if (!Number.isFinite(score) || score <= 0) return false;
+  const current = getHighScore();
+  if (score <= current) return false;
+  try {
+    localStorage.setItem(HIGHSCORE_KEY, String(score));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
