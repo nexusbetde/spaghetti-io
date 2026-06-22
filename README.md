@@ -57,6 +57,7 @@ spaghetti-io/
 - [x] Schritt 1: Projekt-Setup
 - [x] Schritt 2: Spaghetti-Spieler steuern (Maus/Touch + Boost)
 - [x] Schritt 3: Fleischbaellchen essen, wachsen und Score
+- [x] Schritt 3.5: CrazyGames Polish (i18n, Tutorial, Mobile-Boost-Button)
 - [ ] Schritt 4: Kollision und Game Over
 - [ ] Schritt 5: KI-Bots als Gegner
 - [ ] Schritt 6: Polish, Sounds, Highscore, Crazy Games SDK
