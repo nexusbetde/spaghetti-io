@@ -265,6 +265,8 @@ export default class GameOverScreen {
     bg.on('pointerup', () => {
       bg.setScale(1);
       text.setScale(1);
+      // UI-Click-Sound
+      this.scene.sfx?.playUIClick();
       if (typeof this.onRestart === 'function') {
         this.onRestart();
       }

@@ -4,6 +4,7 @@ import BotAI, { BOT_PALETTES } from '../game/BotAI.js';
 import TutorialOverlay from '../ui/TutorialOverlay.js';
 import GameOverScreen from '../ui/GameOverScreen.js';
 import Leaderboard from '../ui/Leaderboard.js';
+import SoundManager from '../audio/SoundManager.js';
 import { t } from '../i18n.js';
 import {
   isTouchDevice,
@@ -57,6 +58,14 @@ export default class GameScene extends Phaser.Scene {
     this.isTouch = isTouchDevice();
     this.worldBounds = { width: WORLD_WIDTH, height: WORLD_HEIGHT };
 
+    // === Audio ===
+    this.sfx = new SoundManager();
+    // Browser erlauben Audio erst nach User-Geste — beim ersten Klick / Tastendruck unlocken
+    this.input.once('pointerdown', () => this.sfx.unlock());
+    if (this.input.keyboard) {
+      this.input.keyboard.once('keydown', () => this.sfx.unlock());
+    }
+
     // === Hintergrund (fuellt die GANZE Welt, nicht nur den Viewport) ===
     this.drawCheckerboard();
     this.drawWorldBorder();
@@ -107,7 +116,7 @@ export default class GameScene extends Phaser.Scene {
     this.spawnBots();
 
     // Leaderboard rechts oberhalb des Best-Badges (oder ganz oben links)
-    this.leaderboard = new Leaderboard(this, 16, getHighScore() > 0 ? 56 : 16);
+    this.leaderboard = new Leaderboard(this, 16, 56);
 
     // Tutorial / Start-Hinweis
     if (!hasSeenTutorial()) {
@@ -304,6 +313,7 @@ export default class GameScene extends Phaser.Scene {
     this.score += PLAYER_KILL_BONUS;
     this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
     this.popScore();
+    this.sfx?.playKillBonus();
 
     // Schwebender Bonus-Text an der Welt-Position des Kills
     const txt = this.add
@@ -341,6 +351,7 @@ export default class GameScene extends Phaser.Scene {
     this.player.kill();
     this.player.setVisible(false);
 
+    this.sfx?.playDeath();
     this.playSauceSplatter(deathData.headX, deathData.headY);
     this.playBodyDebris(deathData);
     this.cameras.main.shake(380, 0.008);
@@ -507,6 +518,7 @@ export default class GameScene extends Phaser.Scene {
       this.score += meatball.value;
       this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
       this.popScore();
+      this.sfx?.playEat(meatball.type === 'golden');
       this.showEatBurst(meatball.x, meatball.y, meatball.value, meatball.type === 'golden');
     }
 
@@ -589,35 +601,47 @@ export default class GameScene extends Phaser.Scene {
       this.markPlayerHasMoved();
 
       if (!this.isTouch && !this.gameOver) {
-        this.player.setBoosting(true);
+        this.setPlayerBoosting(true);
       }
     });
 
     this.input.on('pointerup', () => {
       if (!this.isTouch && this.player) {
-        this.player.setBoosting(false);
+        this.setPlayerBoosting(false);
       }
     });
 
     this.input.on('pointerout', () => {
       if (!this.isTouch && this.player) {
-        this.player.setBoosting(false);
+        this.setPlayerBoosting(false);
       }
     });
 
     const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     spaceKey.on('down', () => {
       if (!this.inputEnabled || this.gameOver) return;
-      this.player.setBoosting(true);
+      this.setPlayerBoosting(true);
     });
-    spaceKey.on('up', () => this.player?.setBoosting(false));
+    spaceKey.on('up', () => this.setPlayerBoosting(false));
 
     const shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     shiftKey.on('down', () => {
       if (!this.inputEnabled || this.gameOver) return;
-      this.player.setBoosting(true);
+      this.setPlayerBoosting(true);
     });
-    shiftKey.on('up', () => this.player?.setBoosting(false));
+    shiftKey.on('up', () => this.setPlayerBoosting(false));
+  }
+
+  /**
+   * Wrapper um player.setBoosting der zusaetzlich den Boost-Sound triggert
+   * — aber nur bei der Transition aus-aus -> aus-an (nicht jeden Frame).
+   */
+  setPlayerBoosting(active) {
+    if (!this.player) return;
+    if (active && !this.player.isBoosting && !this.gameOver) {
+      this.sfx?.playBoost();
+    }
+    this.player.setBoosting(active);
   }
 
   markPlayerHasMoved() {
@@ -695,7 +719,7 @@ export default class GameScene extends Phaser.Scene {
         bg.setFillStyle(0xff6b35, 0.55);
         bg.setScale(1);
       }
-      this.player?.setBoosting(active);
+      this.setPlayerBoosting(active);
     };
 
     bg.on('pointerdown', () => setActive(true));
@@ -720,6 +744,26 @@ export default class GameScene extends Phaser.Scene {
   createHUD() {
     const padX = 16;
     const padY = 14;
+
+    // Mute-Button (top left corner) — links neben dem Best-Badge
+    this.muteBtn = this.add
+      .text(padX, padY, this.sfx.isMuted() ? '\u{1F507}' : '\u{1F50A}', {
+        fontSize: '22px',
+        backgroundColor: '#000000aa',
+        padding: { x: 8, y: 4 }
+      })
+      .setOrigin(0, 0)
+      .setDepth(21)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true });
+
+    this.muteBtn.on('pointerdown', () => {
+      this.sfx.unlock();
+      const newMuted = !this.sfx.isMuted();
+      this.sfx.setMuted(newMuted);
+      this.muteBtn.setText(newMuted ? '\u{1F507}' : '\u{1F50A}');
+      if (!newMuted) this.sfx.playUIClick();
+    });
 
     // Score (top right)
     this.scoreText = this.add
@@ -747,11 +791,11 @@ export default class GameScene extends Phaser.Scene {
       .setDepth(20)
       .setScrollFactor(0);
 
-    // Best (top left)
+    // Best (top left, rechts vom Mute-Button)
     const best = getHighScore();
     if (best > 0) {
       this.add
-        .text(padX, padY, `${t('game_over_best')}: ${best}`, {
+        .text(padX + 52, padY, `${t('game_over_best')}: ${best}`, {
           fontFamily: 'Arial Black, sans-serif',
           fontSize: '16px',
           color: '#ffd700',

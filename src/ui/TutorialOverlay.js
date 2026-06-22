@@ -364,6 +364,9 @@ export default class TutorialOverlay {
     if (this.dismissed) return;
     this.dismissed = true;
 
+    // UI-Click-Sound
+    this.scene.sfx?.playUIClick();
+
     markTutorialSeen();
 
     // Fade everything out and clean up
