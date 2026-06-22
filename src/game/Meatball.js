@@ -43,7 +43,7 @@ export const MEATBALL_TYPES = {
     radius: 13,
     value: 5,
     growth: 8,
-    rampageDuration: 3000
+    rampageDuration: 10000
   }
 };
 
