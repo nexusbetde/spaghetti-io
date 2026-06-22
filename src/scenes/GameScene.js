@@ -24,13 +24,13 @@ import {
  */
 
 // Welt
-const WORLD_WIDTH = 2560;
-const WORLD_HEIGHT = 1440;
+const WORLD_WIDTH = 3200;
+const WORLD_HEIGHT = 1800;
 
 // Spielfeld-Inhalt
-const MEATBALL_COUNT = 80;
+const MEATBALL_COUNT = 120;
 const MAGNET_RADIUS = 90;
-const SPAWN_MIN_DIST_FROM_PLAYER = 160;
+const SPAWN_MIN_DIST_FROM_PLAYER = 180;
 
 // Bots
 const BOT_COUNT = 8;
