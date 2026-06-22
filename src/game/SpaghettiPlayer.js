@@ -36,11 +36,14 @@ export default class SpaghettiPlayer {
     this.headOutline = options.headOutline ?? 0xb8860b;
 
     // === Pfad-History ===
-    // Wir starten gefuellt mit der Startposition, damit der Koerper sofort sichtbar ist
+    // Der Koerper wird beim Spawn nach LINKS vom Kopf ausgelegt — bewusst NICHT
+    // alle Punkte auf den Spawn-Punkt setzen, sonst lieferten Kopf und alle
+    // Segmente die gleiche Position und checkSelfCollision() haette im ersten
+    // Frame sofort True zurueckgegeben.
     this.pathHistory = [];
     const maxHistory = this.segmentCount * this.segmentSpacing + 5;
     for (let i = 0; i < maxHistory; i++) {
-      this.pathHistory.push({ x, y });
+      this.pathHistory.push({ x: x - i * this.baseSpeed, y });
     }
 
     // === Grafik-Objekte ===

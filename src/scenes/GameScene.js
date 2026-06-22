@@ -64,6 +64,14 @@ export default class GameScene extends Phaser.Scene {
     this.gameOverScreen = null;
     this.meatballs = [];
 
+    // Eingaben werden waehrend des Tutorials geblockt, damit ein Klick auf
+    // "Got it!" nicht versehentlich das Bewegungsziel auf den Button-Pixel
+    // setzt und der Spieler losboostet.
+    this.inputEnabled = false;
+    // Kurze Unverwundbarkeit direkt nach dem Start, damit der Spieler sich
+    // orientieren kann. Wird nach Tutorial-Dismiss zurueckgesetzt.
+    this.spawnTime = this.time.now;
+
     // Input
     this.setupInput();
 
@@ -87,10 +95,15 @@ export default class GameScene extends Phaser.Scene {
         isTouch: this.isTouch,
         onDismiss: () => {
           this.tutorial = null;
+          // Eingaben jetzt freigeben und Spawn-Schongraefrist neu starten,
+          // sodass der Spieler ab dem Dismiss-Moment 800ms zum Orientieren hat.
+          this.inputEnabled = true;
+          this.spawnTime = this.time.now;
           this.showGoalBanner();
         }
       });
     } else {
+      this.inputEnabled = true;
       this.showGoalBanner();
     }
   }
@@ -102,16 +115,24 @@ export default class GameScene extends Phaser.Scene {
     // Player follows target
     this.player.update(this.targetX, this.targetY, this.worldBounds);
 
-    // Collision: wall
-    if (this.player.checkWallCollision(this.worldBounds)) {
-      this.die('wall');
-      return;
-    }
+    // Kurze Schongraefrist direkt nach Spawn — schuetzt vor versehentlichen
+    // Toden in der ersten Sekunde (z.B. wenn der Pointer beim Start zufaellig
+    // ueber einem Spielfeld-Rand ist).
+    const SPAWN_GRACE_MS = 800;
+    const inGracePeriod = this.time.now - this.spawnTime < SPAWN_GRACE_MS;
 
-    // Collision: self
-    if (this.player.checkSelfCollision(SELF_COLLISION_SAFE_SEGMENTS)) {
-      this.die('self');
-      return;
+    if (!inGracePeriod) {
+      // Collision: wall
+      if (this.player.checkWallCollision(this.worldBounds)) {
+        this.die('wall');
+        return;
+      }
+
+      // Collision: self
+      if (this.player.checkSelfCollision(SELF_COLLISION_SAFE_SEGMENTS)) {
+        this.die('self');
+        return;
+      }
     }
 
     // Meatball magnet + collision
@@ -370,12 +391,14 @@ export default class GameScene extends Phaser.Scene {
 
   setupInput() {
     this.input.on('pointermove', (pointer) => {
+      if (!this.inputEnabled) return;
       if (this.isPointerOverBoostButton(pointer)) return;
       this.targetX = pointer.x;
       this.targetY = pointer.y;
     });
 
     this.input.on('pointerdown', (pointer) => {
+      if (!this.inputEnabled) return;
       if (this.isPointerOverBoostButton(pointer)) return;
       this.targetX = pointer.x;
       this.targetY = pointer.y;
@@ -400,13 +423,15 @@ export default class GameScene extends Phaser.Scene {
 
     const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     spaceKey.on('down', () => {
-      if (!this.gameOver) this.player.setBoosting(true);
+      if (!this.inputEnabled || this.gameOver) return;
+      this.player.setBoosting(true);
     });
     spaceKey.on('up', () => this.player?.setBoosting(false));
 
     const shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     shiftKey.on('down', () => {
-      if (!this.gameOver) this.player.setBoosting(true);
+      if (!this.inputEnabled || this.gameOver) return;
+      this.player.setBoosting(true);
     });
     shiftKey.on('up', () => this.player?.setBoosting(false));
   }
