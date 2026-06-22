@@ -27,6 +27,9 @@ const messages = {
     goal_golden: 'Golden meatballs give bonus points!',
     // Boost button
     boost_button_label: 'BOOST',
+    // Start hint (shown until player makes first move)
+    start_hint_desktop: 'Move your mouse to play',
+    start_hint_mobile: 'Drag your finger to play',
     game_over_title: 'FINITO!',
     game_over_died_wall: 'You hit the wall!',
     game_over_died_self: 'You bit yourself!',
@@ -49,6 +52,8 @@ const messages = {
     goal_eat: 'Friss Fleischbaellchen zum Wachsen!',
     goal_golden: 'Goldene Baellchen geben Bonuspunkte!',
     boost_button_label: 'BOOST',
+    start_hint_desktop: 'Bewege die Maus zum Spielen',
+    start_hint_mobile: 'Wische mit dem Finger zum Spielen',
     game_over_title: 'FINITO!',
     game_over_died_wall: 'Du bist in die Wand gerannt!',
     game_over_died_self: 'Du hast dich selbst gebissen!',

@@ -77,12 +77,18 @@ export default class SpaghettiPlayer {
     const dy = targetY - this.headY;
     const dist = Math.hypot(dx, dy);
 
-    if (dist > 1) {
-      const speed = this.isBoosting ? this.boostSpeed : this.baseSpeed;
-      // Normalisierter Richtungsvektor * Geschwindigkeit
-      this.headX += (dx / dist) * speed;
-      this.headY += (dy / dist) * speed;
+    // Kein bedeutender Input -> kein Update. WICHTIG: Wenn wir auch ohne
+    // Bewegung die History pushen wuerden, kollabieren nach ~50 Frames alle
+    // Segment-Positionen auf den Kopf und die Self-Collision triggert von
+    // selbst — Spieler stuerbe also wenn er einfach nichts tut.
+    if (dist <= 1) {
+      return;
     }
+
+    const speed = this.isBoosting ? this.boostSpeed : this.baseSpeed;
+    // Normalisierter Richtungsvektor * Geschwindigkeit
+    this.headX += (dx / dist) * speed;
+    this.headY += (dy / dist) * speed;
 
     // 2) Halte den Kopf im Spielfeld (Clamping)
     if (worldBounds) {

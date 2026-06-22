@@ -71,6 +71,10 @@ export default class GameScene extends Phaser.Scene {
     // Kurze Unverwundbarkeit direkt nach dem Start, damit der Spieler sich
     // orientieren kann. Wird nach Tutorial-Dismiss zurueckgesetzt.
     this.spawnTime = this.time.now;
+    // Wird auf true gesetzt sobald der Spieler zum ersten Mal Eingabe macht.
+    // Bis dahin zeigen wir den "Move mouse to play"-Hinweis an.
+    this.hasMoved = false;
+    this.startHint = null;
 
     // Input
     this.setupInput();
@@ -99,11 +103,13 @@ export default class GameScene extends Phaser.Scene {
           // sodass der Spieler ab dem Dismiss-Moment 800ms zum Orientieren hat.
           this.inputEnabled = true;
           this.spawnTime = this.time.now;
+          this.showStartHint();
           this.showGoalBanner();
         }
       });
     } else {
       this.inputEnabled = true;
+      this.showStartHint();
       this.showGoalBanner();
     }
   }
@@ -395,6 +401,7 @@ export default class GameScene extends Phaser.Scene {
       if (this.isPointerOverBoostButton(pointer)) return;
       this.targetX = pointer.x;
       this.targetY = pointer.y;
+      this.markPlayerHasMoved();
     });
 
     this.input.on('pointerdown', (pointer) => {
@@ -402,6 +409,7 @@ export default class GameScene extends Phaser.Scene {
       if (this.isPointerOverBoostButton(pointer)) return;
       this.targetX = pointer.x;
       this.targetY = pointer.y;
+      this.markPlayerHasMoved();
 
       // Desktop click = boost. Mobile uses the dedicated button.
       if (!this.isTouch && !this.gameOver) {
@@ -434,6 +442,18 @@ export default class GameScene extends Phaser.Scene {
       this.player.setBoosting(true);
     });
     shiftKey.on('up', () => this.player?.setBoosting(false));
+  }
+
+  /**
+   * Wird beim ersten gueltigen Spieler-Input aufgerufen.
+   * Faded den Start-Hinweis aus und sorgt fuer eine frische
+   * Schongraefrist ab dem ersten echten Bewegungsmoment.
+   */
+  markPlayerHasMoved() {
+    if (this.hasMoved) return;
+    this.hasMoved = true;
+    this.spawnTime = this.time.now;
+    this.fadeStartHint();
   }
 
   isPointerOverBoostButton(pointer) {
@@ -585,6 +605,83 @@ export default class GameScene extends Phaser.Scene {
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Start-Hinweis
+  // ---------------------------------------------------------------------------
+
+  showStartHint() {
+    const { width, height } = this.scale;
+
+    const hintKey = this.isTouch ? 'start_hint_mobile' : 'start_hint_desktop';
+
+    const text = this.add
+      .text(width / 2, height * 0.34, t(hintKey), {
+        fontFamily: 'Arial Black, sans-serif',
+        fontSize: '30px',
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 5,
+        align: 'center'
+      })
+      .setOrigin(0.5)
+      .setDepth(30);
+
+    // Sanftes Auf-und-Ab als Eye-Catcher
+    this.tweens.add({
+      targets: text,
+      y: '+=12',
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    // Kleiner Pfeil unter dem Text der auf die Spaghetti zeigt
+    const arrow = this.add.graphics().setDepth(30);
+    arrow.lineStyle(5, 0xffd700, 1);
+    arrow.fillStyle(0xffd700, 1);
+    const ax = width / 2;
+    const ay = height * 0.34 + 38;
+    arrow.beginPath();
+    arrow.moveTo(ax, ay);
+    arrow.lineTo(ax, ay + 28);
+    arrow.strokePath();
+    // Pfeilspitze
+    arrow.fillTriangle(
+      ax - 10, ay + 22,
+      ax + 10, ay + 22,
+      ax, ay + 40
+    );
+
+    this.tweens.add({
+      targets: arrow,
+      y: '+=12',
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    this.startHint = { text, arrow };
+  }
+
+  fadeStartHint() {
+    if (!this.startHint) return;
+    const { text, arrow } = this.startHint;
+    this.startHint = null;
+    this.tweens.add({
+      targets: [text, arrow],
+      alpha: 0,
+      y: '-=30',
+      duration: 400,
+      ease: 'Cubic.easeIn',
+      onComplete: () => {
+        text.destroy();
+        arrow.destroy();
+      }
     });
   }
 
