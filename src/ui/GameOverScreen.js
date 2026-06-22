@@ -84,7 +84,12 @@ export default class GameOverScreen {
     });
 
     // Cause line
-    const causeKey = this.cause === 'self' ? 'game_over_died_self' : 'game_over_died_wall';
+    const causeKey =
+      this.cause === 'self'
+        ? 'game_over_died_self'
+        : this.cause === 'snake'
+          ? 'game_over_died_snake'
+          : 'game_over_died_wall';
     const causeLine = this.scene.add
       .text(cardX, cardY - cardHeight / 2 + 115, t(causeKey), {
         fontFamily: 'Arial, sans-serif',

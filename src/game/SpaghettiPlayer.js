@@ -60,6 +60,22 @@ export default class SpaghettiPlayer {
     // === Lebensstatus ===
     // Wird auf true gesetzt sobald der Spieler stirbt, stoppt update() und draw().
     this.isDead = false;
+
+    // === Name-Label (optional, fuer Bots oder als "You"-Marker) ===
+    this.name = options.name ?? null;
+    this.nameLabel = null;
+    if (this.name) {
+      this.nameLabel = scene.add
+        .text(x, y - this.headRadius - 14, this.name, {
+          fontFamily: 'Arial Black, sans-serif',
+          fontSize: '14px',
+          color: options.nameColor ?? '#ffffff',
+          stroke: '#000000',
+          strokeThickness: 3
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(17);
+    }
   }
 
   /**
@@ -109,6 +125,16 @@ export default class SpaghettiPlayer {
     // 5) Neuzeichnen
     this.draw();
     this.updateEyes();
+    this.updateNameLabel();
+  }
+
+  /**
+   * Positioniert das Namens-Label ueber dem Kopf.
+   */
+  updateNameLabel() {
+    if (this.nameLabel) {
+      this.nameLabel.setPosition(this.headX, this.headY - this.headRadius - 14);
+    }
   }
 
   /**
@@ -263,9 +289,65 @@ export default class SpaghettiPlayer {
   }
 
   /**
-   * Erstellt einen Schnappschuss des aktuellen Zustands fuer die Todes-Animation.
-   * Wird VOR setVisible(false) aufgerufen, damit wir die Daten noch haben.
+   * Prueft ob der Kopf einen Punkt des Koerpers einer ANDEREN Schlange beruehrt.
+   * Anders als bei Self-Collision pruefen wir hier ALLE Segmente — es gibt
+   * keine "Safe-Zone" weil wir nicht in unserem eigenen Pfad fahren.
    */
+  checkCollisionWith(other) {
+    if (!other || other === this || other.isDead) return false;
+
+    // Kopf-vs-Kopf erst: bei direktem Crash beide tot (caller entscheidet wer)
+    const headDist = Math.hypot(this.headX - other.headX, this.headY - other.headY);
+    if (headDist < this.headRadius + other.headRadius) return true;
+
+    // Mein Kopf vs. ihre Koerper-Segmente
+    for (let i = 0; i < other.segmentCount; i++) {
+      const idx = i * other.segmentSpacing;
+      if (idx >= other.pathHistory.length) continue;
+
+      const pos = other.pathHistory[idx];
+      const dist = Math.hypot(this.headX - pos.x, this.headY - pos.y);
+
+      const t = i / Math.max(1, other.segmentCount - 1);
+      const segRadius = other.bodyRadius - t * (other.bodyRadius - other.bodyEndRadius);
+
+      // 0.75 = nicht ganz so streng, gibt Spielraum bei knappen Vorbeiziehern
+      if (dist < (this.headRadius + segRadius) * 0.75) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Setzt die Schlange auf einen neuen Spawn-Punkt zurueck.
+   * Wird fuer Bot-Respawn benutzt und koennte auch fuer Player-Restart genutzt
+   * werden (wir restarten dort allerdings die ganze Scene).
+   */
+  respawn(x, y, options = {}) {
+    this.headX = x;
+    this.headY = y;
+    this.isDead = false;
+    this.isBoosting = false;
+
+    if (options.segmentCount !== undefined) {
+      this.segmentCount = options.segmentCount;
+    } else {
+      this.segmentCount = 30;
+    }
+
+    // History neu auslegen, Koerper nach links vom Kopf
+    this.pathHistory = [];
+    const maxHistory = this.segmentCount * this.segmentSpacing + 5;
+    for (let i = 0; i < maxHistory; i++) {
+      this.pathHistory.push({ x: x - i * this.baseSpeed, y });
+    }
+
+    this.setVisible(true);
+    this.draw();
+    this.updateEyes();
+    this.updateNameLabel();
+  }
   captureDeathState() {
     const segments = [];
     for (let i = 0; i < this.segmentCount; i++) {
@@ -299,6 +381,7 @@ export default class SpaghettiPlayer {
     this.eyeWhiteRight.setVisible(visible);
     this.pupilLeft.setVisible(visible);
     this.pupilRight.setVisible(visible);
+    if (this.nameLabel) this.nameLabel.setVisible(visible);
   }
 
   /**
@@ -318,5 +401,6 @@ export default class SpaghettiPlayer {
     this.eyeWhiteRight.destroy();
     this.pupilLeft.destroy();
     this.pupilRight.destroy();
+    if (this.nameLabel) this.nameLabel.destroy();
   }
 }

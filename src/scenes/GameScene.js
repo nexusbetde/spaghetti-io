@@ -1,7 +1,9 @@
 import SpaghettiPlayer from '../game/SpaghettiPlayer.js';
 import Meatball from '../game/Meatball.js';
+import BotAI, { BOT_PALETTES } from '../game/BotAI.js';
 import TutorialOverlay from '../ui/TutorialOverlay.js';
 import GameOverScreen from '../ui/GameOverScreen.js';
+import Leaderboard from '../ui/Leaderboard.js';
 import { t } from '../i18n.js';
 import {
   isTouchDevice,
@@ -11,31 +13,38 @@ import {
 } from '../utils/device.js';
 
 /**
- * GameScene — Main gameplay.
+ * GameScene — Hauptspiel mit Spieler, KI-Bots und Multi-Snake-Kollisionen.
  *
- * Step 4: Death, Game Over, Restart
- *  - Head hits wall    -> die
- *  - Head hits own body (with safe-zone offset) -> die
- *  - Dramatic death animation: sauce splatter, body segments fly out,
- *    camera shake
- *  - Body becomes a trail of meatballs (prep for bots in step 5)
- *  - Game Over screen with score / length / best, "New Best!" celebration
- *  - "Play Again" button restarts the scene
+ * Schritt 5: Bots
+ *  - 6 KI-Spaghetti mit verschiedenen italienischen Farben/Namen
+ *  - Bots jagen Fleischbaellchen und weichen Waenden + anderen Snakes aus
+ *  - Multi-Snake-Kollisionen: Kopf vs. fremder Koerper = Tod
+ *  - Bot-Tod droppt Fleischbaellchen, danach Respawn nach 2-4s
+ *  - Kill durch Player gibt +50 Score
+ *  - Live-Leaderboard oben links
  */
 
-// Game constants
-const MEATBALL_COUNT = 35;
+// Spielfeld
+const MEATBALL_COUNT = 50;
 const MAGNET_RADIUS = 90;
 const SPAWN_MIN_DIST_FROM_PLAYER = 120;
+
+// Snake-Kollision
+const SELF_COLLISION_SAFE_SEGMENTS = 12;
+
+// Bots
+const BOT_COUNT = 6;
+const BOT_RESPAWN_DELAY_MIN = 2200;
+const BOT_RESPAWN_DELAY_MAX = 4200;
+const PLAYER_KILL_BONUS = 50;
 
 // Mobile boost button
 const BOOST_BTN_RADIUS = 55;
 const BOOST_BTN_MARGIN = 28;
 
 // Death
-const DEATH_ANIM_DURATION = 1400;      // ms until game over screen appears
-const SELF_COLLISION_SAFE_SEGMENTS = 12;
-const DEATH_DROP_EVERY_NTH_SEGMENT = 3; // every 3rd body segment becomes a meatball
+const DEATH_ANIM_DURATION = 1400;
+const DEATH_DROP_EVERY_NTH_SEGMENT = 3;
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -52,7 +61,10 @@ export default class GameScene extends Phaser.Scene {
     this.drawCheckerboard();
 
     // Player
-    this.player = new SpaghettiPlayer(this, width / 2, height / 2);
+    this.player = new SpaghettiPlayer(this, width / 2, height / 2, {
+      name: t('you'),
+      nameColor: '#ffd700'
+    });
 
     // Direction target (updated by mouse/touch)
     this.targetX = width / 2;
@@ -63,16 +75,11 @@ export default class GameScene extends Phaser.Scene {
     this.gameOver = false;
     this.gameOverScreen = null;
     this.meatballs = [];
+    this.bots = [];
 
-    // Eingaben werden waehrend des Tutorials geblockt, damit ein Klick auf
-    // "Got it!" nicht versehentlich das Bewegungsziel auf den Button-Pixel
-    // setzt und der Spieler losboostet.
+    // Eingaben werden waehrend Tutorial geblockt
     this.inputEnabled = false;
-    // Kurze Unverwundbarkeit direkt nach dem Start, damit der Spieler sich
-    // orientieren kann. Wird nach Tutorial-Dismiss zurueckgesetzt.
     this.spawnTime = this.time.now;
-    // Wird auf true gesetzt sobald der Spieler zum ersten Mal Eingabe macht.
-    // Bis dahin zeigen wir den "Move mouse to play"-Hinweis an.
     this.hasMoved = false;
     this.startHint = null;
 
@@ -88,19 +95,19 @@ export default class GameScene extends Phaser.Scene {
       this.createMobileBoostButton();
     }
 
-    // Spawn initial meatballs
-    for (let i = 0; i < MEATBALL_COUNT; i++) {
-      this.spawnMeatball();
-    }
+    // Spawn meatballs and bots
+    this.spawnInitialMeatballs();
+    this.spawnBots();
 
-    // Tutorial on first ever play, otherwise just the goal banner
+    // Leaderboard rechts neben dem Best-Badge (oder ganz oben links wenn kein Best)
+    this.leaderboard = new Leaderboard(this, 16, getHighScore() > 0 ? 56 : 16);
+
+    // Tutorial on first ever play, otherwise just the goal banner + hint
     if (!hasSeenTutorial()) {
       this.tutorial = new TutorialOverlay(this, {
         isTouch: this.isTouch,
         onDismiss: () => {
           this.tutorial = null;
-          // Eingaben jetzt freigeben und Spawn-Schongraefrist neu starten,
-          // sodass der Spieler ab dem Dismiss-Moment 800ms zum Orientieren hat.
           this.inputEnabled = true;
           this.spawnTime = this.time.now;
           this.showStartHint();
@@ -115,67 +122,243 @@ export default class GameScene extends Phaser.Scene {
   }
 
   update() {
-    // While dead nothing moves
     if (this.gameOver) return;
 
-    // Player follows target
+    // 1) Spieler bewegen
     this.player.update(this.targetX, this.targetY, this.worldBounds);
 
-    // Kurze Schongraefrist direkt nach Spawn — schuetzt vor versehentlichen
-    // Toden in der ersten Sekunde (z.B. wenn der Pointer beim Start zufaellig
-    // ueber einem Spielfeld-Rand ist).
+    // 2) Bots bewegen
+    const allSnakes = this.collectActiveSnakes();
+    for (const bot of this.bots) {
+      bot.update(this.meatballs, this.snakesExcluding(bot.snake, allSnakes), this.worldBounds);
+    }
+
+    // 3) Kollisionen pruefen (mit Spawn-Schonfrist)
     const SPAWN_GRACE_MS = 800;
     const inGracePeriod = this.time.now - this.spawnTime < SPAWN_GRACE_MS;
 
     if (!inGracePeriod) {
-      // Collision: wall
+      // Spieler-Kollisionen (Tod = Game Over)
       if (this.player.checkWallCollision(this.worldBounds)) {
         this.die('wall');
         return;
       }
-
-      // Collision: self
       if (this.player.checkSelfCollision(SELF_COLLISION_SAFE_SEGMENTS)) {
         this.die('self');
         return;
       }
+      for (const bot of this.bots) {
+        if (bot.snake.isDead) continue;
+        if (this.player.checkCollisionWith(bot.snake)) {
+          this.die('snake');
+          return;
+        }
+      }
+
+      // Bot-Kollisionen (Tod = Respawn)
+      this.processBotCollisions();
     }
 
-    // Meatball magnet + collision
+    // 4) Fleischbaellchen-Logik fuer alle Snakes
     this.processMeatballs();
 
-    // HUD: boost indicator
+    // 5) HUD
     this.boostIndicator.setVisible(this.player.isBoosting);
+    this.lengthText.setText(`${t('hud_length')}: ${this.player.length}`);
+    this.leaderboard.update(this.collectLeaderboardEntries());
   }
 
   // ---------------------------------------------------------------------------
-  // Death and restart
+  // Snake-Sammlung (Helpers)
+  // ---------------------------------------------------------------------------
+
+  collectActiveSnakes() {
+    const list = [];
+    if (!this.player.isDead) list.push(this.player);
+    for (const bot of this.bots) if (!bot.snake.isDead) list.push(bot.snake);
+    return list;
+  }
+
+  snakesExcluding(exclude, list) {
+    return list.filter((s) => s !== exclude);
+  }
+
+  collectLeaderboardEntries() {
+    const entries = [];
+    entries.push({
+      name: t('you'),
+      length: this.player.length,
+      isPlayer: true,
+      alive: !this.player.isDead
+    });
+    for (const bot of this.bots) {
+      entries.push({
+        name: bot.name,
+        length: bot.snake.length,
+        isPlayer: false,
+        alive: !bot.snake.isDead
+      });
+    }
+    return entries;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bot-Lifecycle
+  // ---------------------------------------------------------------------------
+
+  spawnBots() {
+    // Zufaellige Auswahl von BOT_COUNT Paletten ohne Wiederholung
+    const palettes = Phaser.Utils.Array.Shuffle(BOT_PALETTES.slice()).slice(0, BOT_COUNT);
+
+    for (const palette of palettes) {
+      const pos = this.findSafeSpawnPoint();
+      this.bots.push(new BotAI(this, palette, pos.x, pos.y));
+    }
+  }
+
+  findSafeSpawnPoint() {
+    const { width, height } = this.scale;
+    const margin = 120;
+    const minDist = 180;
+
+    let best = null;
+    let bestScore = -1;
+
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const x = Phaser.Math.Between(margin, width - margin);
+      const y = Phaser.Math.Between(margin, height - margin);
+
+      // Minimaler Abstand zu allen aktiven Schlangen
+      let minD = Infinity;
+      for (const s of this.collectActiveSnakes()) {
+        const d = Math.hypot(x - s.headX, y - s.headY);
+        if (d < minD) minD = d;
+      }
+
+      if (minD > bestScore) {
+        bestScore = minD;
+        best = { x, y };
+      }
+      if (minD >= minDist) break; // gut genug
+    }
+
+    return best || { x: width / 2, y: height / 2 };
+  }
+
+  processBotCollisions() {
+    for (const bot of this.bots) {
+      if (bot.snake.isDead) continue;
+      const snake = bot.snake;
+
+      // Wand
+      if (snake.checkWallCollision(this.worldBounds)) {
+        this.killBot(bot, 'wall');
+        continue;
+      }
+      // Self
+      if (snake.checkSelfCollision(SELF_COLLISION_SAFE_SEGMENTS)) {
+        this.killBot(bot, 'self');
+        continue;
+      }
+      // Player-Body
+      if (snake.checkCollisionWith(this.player)) {
+        this.killBot(bot, 'player');
+        // Spieler bekommt Bonus
+        this.awardKillBonus(snake.headX, snake.headY);
+        continue;
+      }
+      // Andere Bots
+      let killed = false;
+      for (const other of this.bots) {
+        if (other === bot || other.snake.isDead) continue;
+        if (snake.checkCollisionWith(other.snake)) {
+          this.killBot(bot, 'bot');
+          killed = true;
+          break;
+        }
+      }
+      if (killed) continue;
+    }
+  }
+
+  killBot(bot, cause) {
+    if (bot.snake.isDead) return;
+
+    const data = bot.snake.captureDeathState();
+    bot.snake.kill();
+    bot.snake.setVisible(false);
+
+    // Visuelle Effekte
+    this.playSauceSplatter(data.headX, data.headY);
+    this.playBodyDebris(data);
+
+    // Fleischbaellchen droppen
+    this.dropDeathMeatballs(data.segments);
+
+    // Respawn nach Delay
+    const delay = BOT_RESPAWN_DELAY_MIN + Math.random() * (BOT_RESPAWN_DELAY_MAX - BOT_RESPAWN_DELAY_MIN);
+    this.time.delayedCall(delay, () => this.respawnBot(bot));
+  }
+
+  respawnBot(bot) {
+    if (this.gameOver) return;
+    const pos = this.findSafeSpawnPoint();
+    bot.snake.respawn(pos.x, pos.y);
+    // Boost-State frisch starten
+    bot.lastBoostStart = 0;
+    bot.lastBoostEnd = this.time.now;
+  }
+
+  awardKillBonus(x, y) {
+    this.score += PLAYER_KILL_BONUS;
+    this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
+    this.popScore();
+
+    // Schwebender Bonus-Text
+    const txt = this.add
+      .text(x, y, `+${PLAYER_KILL_BONUS} ${t('kill_bonus')}`, {
+        fontFamily: 'Arial Black, sans-serif',
+        fontSize: '26px',
+        color: '#ff6b35',
+        stroke: '#000000',
+        strokeThickness: 5
+      })
+      .setOrigin(0.5)
+      .setDepth(30);
+
+    this.tweens.add({
+      targets: txt,
+      y: y - 80,
+      alpha: 0,
+      scale: 1.3,
+      duration: 1200,
+      ease: 'Cubic.easeOut',
+      onComplete: () => txt.destroy()
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Spieler-Tod und Restart
   // ---------------------------------------------------------------------------
 
   die(cause) {
     if (this.gameOver) return;
     this.gameOver = true;
 
-    // 1) Capture player state for the death effects
     const deathData = this.player.captureDeathState();
 
-    // 2) Stop the player and hide its visuals (they will be replaced by debris)
     this.player.kill();
     this.player.setVisible(false);
 
-    // 3) Visual chaos: sauce splatter + body debris + camera shake
     this.playSauceSplatter(deathData.headX, deathData.headY);
     this.playBodyDebris(deathData);
     this.cameras.main.shake(380, 0.008);
 
-    // 4) Drop a trail of meatballs along the body — food for future bots
     this.dropDeathMeatballs(deathData.segments);
 
-    // 5) Update highscore. maybeSetHighScore returns true only when beaten.
     const previousBest = getHighScore();
     const isNewBest = maybeSetHighScore(this.score);
 
-    // 6) Show the game over screen after the death anim has had time to land
     this.time.delayedCall(DEATH_ANIM_DURATION, () => {
       this.gameOverScreen = new GameOverScreen(this, {
         score: this.score,
@@ -189,16 +372,13 @@ export default class GameScene extends Phaser.Scene {
   }
 
   restart() {
-    // Phaser.Scene.restart() destroys all game objects, then re-runs create()
-    // — exactly the clean slate we want. The tutorial flag in localStorage
-    // ensures the tutorial does not show again, but the goal banner does.
     this.scene.restart();
   }
 
-  /**
-   * Sauce splatter from the head — radial burst of red blobs.
-   * Some stay on the floor as longer-lived stains.
-   */
+  // ---------------------------------------------------------------------------
+  // Visuelle Death-Effekte (geteilt zwischen Spieler- und Bot-Tod)
+  // ---------------------------------------------------------------------------
+
   playSauceSplatter(x, y) {
     const blobCount = 22;
     for (let i = 0; i < blobCount; i++) {
@@ -216,7 +396,6 @@ export default class GameScene extends Phaser.Scene {
         duration: 700,
         ease: 'Cubic.easeOut',
         onComplete: () => {
-          // Leave a fading stain on the floor
           this.tweens.add({
             targets: blob,
             alpha: 0,
@@ -229,13 +408,8 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Each body segment becomes a falling/rotating chunk that fades out.
-   * Visually communicates "the spaghetti broke apart".
-   */
   playBodyDebris(deathData) {
     deathData.segments.forEach((seg, i) => {
-      // Filled circle in body color, with a slightly darker outline
       const piece = this.add.circle(seg.x, seg.y, seg.radius, deathData.bodyColor).setDepth(14);
       piece.setStrokeStyle(2, deathData.bodyOutline, 1);
 
@@ -256,7 +430,6 @@ export default class GameScene extends Phaser.Scene {
       });
     });
 
-    // Head explosion: a bigger gold flash that fades out
     const headFlash = this.add
       .circle(deathData.headX, deathData.headY, deathData.headRadius, deathData.headColor)
       .setDepth(16);
@@ -270,38 +443,24 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  /**
-   * Spawn a sparse trail of meatballs along the path the snake used.
-   * In step 5 (bots) this becomes a reward for whoever moves in next.
-   */
   dropDeathMeatballs(segmentPositions) {
     for (let i = 0; i < segmentPositions.length; i += DEATH_DROP_EVERY_NTH_SEGMENT) {
       const seg = segmentPositions[i];
       const jitter = 14;
       const x = seg.x + (Math.random() - 0.5) * jitter;
       const y = seg.y + (Math.random() - 0.5) * jitter;
-      // Every ~5th drop is golden — incentive for bots/players to go look
       const type = (i % (DEATH_DROP_EVERY_NTH_SEGMENT * 5) === 0) ? 'golden' : 'normal';
       this.meatballs.push(new Meatball(this, x, y, type));
     }
   }
 
   // ---------------------------------------------------------------------------
-  // Meatball logic
+  // Fleischbaellchen
   // ---------------------------------------------------------------------------
 
-  processMeatballs() {
-    const headX = this.player.headX;
-    const headY = this.player.headY;
-    const eatRadius = this.player.headRadius;
-
-    for (let i = this.meatballs.length - 1; i >= 0; i--) {
-      const m = this.meatballs[i];
-      const dist = m.updatePull(headX, headY, MAGNET_RADIUS);
-
-      if (dist < eatRadius + m.radius) {
-        this.eatMeatball(m, i);
-      }
+  spawnInitialMeatballs() {
+    for (let i = 0; i < MEATBALL_COUNT; i++) {
+      this.spawnMeatball();
     }
   }
 
@@ -322,19 +481,54 @@ export default class GameScene extends Phaser.Scene {
     this.meatballs.push(new Meatball(this, x, y, type));
   }
 
-  eatMeatball(meatball, idx) {
-    this.score += meatball.value;
-    this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
-    this.popScore();
+  processMeatballs() {
+    const snakes = this.collectActiveSnakes();
+    if (snakes.length === 0) return;
 
-    this.player.grow(meatball.growth);
-    this.lengthText.setText(`${t('hud_length')}: ${this.player.length}`);
+    for (let i = this.meatballs.length - 1; i >= 0; i--) {
+      const m = this.meatballs[i];
 
-    this.showEatBurst(meatball.x, meatball.y, meatball.value, meatball.type === 'golden');
+      // Naechste Snake-Kopf-Position finden
+      let closestSnake = null;
+      let closestDist = Infinity;
+      for (const s of snakes) {
+        const d = Math.hypot(s.headX - m.x, s.headY - m.y);
+        if (d < closestDist) {
+          closestDist = d;
+          closestSnake = s;
+        }
+      }
+      if (!closestSnake) continue;
+
+      // Magnet-Zug
+      m.updatePull(closestSnake.headX, closestSnake.headY, MAGNET_RADIUS);
+
+      // Aktuelle Distanz pruefen (kann nach Pull kleiner sein)
+      const dist = Math.hypot(closestSnake.headX - m.x, closestSnake.headY - m.y);
+      if (dist < closestSnake.headRadius + m.radius) {
+        this.handleMeatballEaten(m, i, closestSnake);
+      }
+    }
+
+    // Auffuellen falls unter Soll
+    while (this.meatballs.length < MEATBALL_COUNT) {
+      this.spawnMeatball();
+    }
+  }
+
+  handleMeatballEaten(meatball, idx, snake) {
+    snake.grow(meatball.growth);
+
+    // Spieler bekommt Score-Reward und Burst-Effekt
+    if (snake === this.player) {
+      this.score += meatball.value;
+      this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
+      this.popScore();
+      this.showEatBurst(meatball.x, meatball.y, meatball.value, meatball.type === 'golden');
+    }
 
     meatball.destroy();
     this.meatballs.splice(idx, 1);
-    this.spawnMeatball();
   }
 
   showEatBurst(x, y, points, isGolden) {
@@ -411,7 +605,6 @@ export default class GameScene extends Phaser.Scene {
       this.targetY = pointer.y;
       this.markPlayerHasMoved();
 
-      // Desktop click = boost. Mobile uses the dedicated button.
       if (!this.isTouch && !this.gameOver) {
         this.player.setBoosting(true);
       }
@@ -444,11 +637,6 @@ export default class GameScene extends Phaser.Scene {
     shiftKey.on('up', () => this.player?.setBoosting(false));
   }
 
-  /**
-   * Wird beim ersten gueltigen Spieler-Input aufgerufen.
-   * Faded den Start-Hinweis aus und sorgt fuer eine frische
-   * Schongraefrist ab dem ersten echten Bewegungsmoment.
-   */
   markPlayerHasMoved() {
     if (this.hasMoved) return;
     this.hasMoved = true;
@@ -568,7 +756,7 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setDepth(20);
 
-    // Best score (top left) — small badge so player always knows the target
+    // Best score (top left) — small badge
     const best = getHighScore();
     if (best > 0) {
       this.add
@@ -629,7 +817,6 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(30);
 
-    // Sanftes Auf-und-Ab als Eye-Catcher
     this.tweens.add({
       targets: text,
       y: '+=12',
@@ -639,7 +826,6 @@ export default class GameScene extends Phaser.Scene {
       ease: 'Sine.easeInOut'
     });
 
-    // Kleiner Pfeil unter dem Text der auf die Spaghetti zeigt
     const arrow = this.add.graphics().setDepth(30);
     arrow.lineStyle(5, 0xffd700, 1);
     arrow.fillStyle(0xffd700, 1);
@@ -649,12 +835,7 @@ export default class GameScene extends Phaser.Scene {
     arrow.moveTo(ax, ay);
     arrow.lineTo(ax, ay + 28);
     arrow.strokePath();
-    // Pfeilspitze
-    arrow.fillTriangle(
-      ax - 10, ay + 22,
-      ax + 10, ay + 22,
-      ax, ay + 40
-    );
+    arrow.fillTriangle(ax - 10, ay + 22, ax + 10, ay + 22, ax, ay + 40);
 
     this.tweens.add({
       targets: arrow,
@@ -686,7 +867,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Goal banner — brief intro hint
+  // Goal banner
   // ---------------------------------------------------------------------------
 
   showGoalBanner() {

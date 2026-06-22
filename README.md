@@ -59,7 +59,7 @@ spaghetti-io/
 - [x] Schritt 3: Fleischbaellchen essen, wachsen und Score
 - [x] Schritt 3.5: CrazyGames Polish (i18n, Tutorial, Mobile-Boost-Button)
 - [x] Schritt 4: Kollision, Tod, Game Over, Highscore, Restart
-- [ ] Schritt 5: KI-Bots als Gegner
+- [x] Schritt 5: KI-Bots, Multi-Snake-PvP, Leaderboard
 - [ ] Schritt 6: Polish, Sounds, Crazy Games SDK
 
 ## Deployment zu Crazy Games
