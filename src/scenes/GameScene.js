@@ -221,6 +221,16 @@ export default class GameScene extends Phaser.Scene {
         this.rampageVignetteTween.pause();
       }
     }
+
+    // Sprint-HUD (Pepperoncini)
+    const sprinting = this.player.isSprinting;
+    if (sprinting) {
+      const seconds = Math.ceil(this.player.sprintMillisLeft() / 1000);
+      this.sprintHUD.setText(`SPRINT ${Math.max(0, seconds)}`);
+      this.sprintHUD.setVisible(true);
+    } else if (this.sprintHUD.visible) {
+      this.sprintHUD.setVisible(false);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -559,10 +569,11 @@ export default class GameScene extends Phaser.Scene {
     for (let i = 0; i < MEATBALL_COUNT; i++) {
       this.spawnMeatball();
     }
-    // Garantierter Start: mindestens 1 Chili, 1 Truffle und 2 Golden
+    // Garantierter Start: mindestens 1 Chili, 1 Pepperoncini, 2 Truffle und 3 Golden
     // — sonst koennte ein Spieler eine ganze Session lang die Spezial-Items
     // nicht sehen weil RNG ungluecklich ist.
     this.ensureMeatballOfType('chili', 1);
+    this.ensureMeatballOfType('pepperoncini', 1);
     this.ensureMeatballOfType('truffle', 2);
     this.ensureMeatballOfType('golden', 3);
   }
@@ -605,7 +616,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   countSpecialMeatballs() {
-    const counts = { truffle: 0, chili: 0 };
+    const counts = { truffle: 0, chili: 0, pepperoncini: 0 };
     for (const m of this.meatballs) {
       if (counts[m.type] !== undefined) counts[m.type]++;
     }
@@ -658,20 +669,27 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
+    // Pepperoncini aktiviert Sprint-Mode (auch fuer Bots)
+    if (meatball.type === 'pepperoncini') {
+      snake.activateSprint(meatball.sprintDuration);
+      if (snake === this.player) {
+        this.sfx?.playSprintStart();
+      }
+    }
+
     if (snake === this.player) {
       this.score += meatball.value;
       this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
       this.popScore();
 
-      // Type-spezifische Sounds
+      // Type-spezifische Sounds (chili/pepperoncini wurden schon oben gespielt)
       if (meatball.type === 'truffle') {
         this.sfx?.playMegaEat();
-      } else if (meatball.type !== 'chili') {
-        // chili spielt schon playRampageStart
+      } else if (meatball.type !== 'chili' && meatball.type !== 'pepperoncini') {
         this.sfx?.playEat(meatball.type === 'golden');
       }
 
-      const isSpecial = meatball.type === 'golden' || meatball.type === 'truffle' || meatball.type === 'chili';
+      const isSpecial = meatball.type === 'golden' || meatball.type === 'truffle' || meatball.type === 'chili' || meatball.type === 'pepperoncini';
       this.showEatBurst(meatball.x, meatball.y, meatball.value, isSpecial, meatball.type);
     }
 
@@ -720,12 +738,17 @@ export default class GameScene extends Phaser.Scene {
   showEatBurst(x, y, points, isGolden, type) {
     const isTruffle = type === 'truffle';
     const isChili = type === 'chili';
+    const isPepperoncini = type === 'pepperoncini';
 
     const text = this.add
       .text(x, y, `+${points}`, {
         fontFamily: 'Arial Black, sans-serif',
-        fontSize: (isGolden || isTruffle || isChili) ? '34px' : '22px',
-        color: isTruffle ? '#ba68c8' : isChili ? '#ff5555' : isGolden ? '#ffd700' : '#ffffff',
+        fontSize: (isGolden || isTruffle || isChili || isPepperoncini) ? '34px' : '22px',
+        color: isTruffle ? '#ba68c8'
+          : isChili ? '#ff5555'
+          : isPepperoncini ? '#66bb6a'
+          : isGolden ? '#ffd700'
+          : '#ffffff',
         stroke: '#000000',
         strokeThickness: 4
       })
@@ -741,8 +764,12 @@ export default class GameScene extends Phaser.Scene {
       onComplete: () => text.destroy()
     });
 
-    const burstColor = isTruffle ? 0xba68c8 : isChili ? 0xff5555 : isGolden ? 0xffd700 : 0xcd853f;
-    const particleCount = (isGolden || isTruffle || isChili) ? 10 : 6;
+    const burstColor = isTruffle ? 0xba68c8
+      : isChili ? 0xff5555
+      : isPepperoncini ? 0x66bb6a
+      : isGolden ? 0xffd700
+      : 0xcd853f;
+    const particleCount = (isGolden || isTruffle || isChili || isPepperoncini) ? 10 : 6;
 
     for (let i = 0; i < particleCount; i++) {
       const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.3;
@@ -1036,6 +1063,22 @@ export default class GameScene extends Phaser.Scene {
         strokeThickness: 7
       })
       .setOrigin(0.5)
+      .setDepth(21)
+      .setScrollFactor(0)
+      .setVisible(false);
+
+    // Sprint-HUD (kleiner, gruener, rechts neben dem Length)
+    this.sprintHUD = this.add
+      .text(this.scale.width - padX, padY + 78, '', {
+        fontFamily: 'Arial Black, sans-serif',
+        fontSize: '20px',
+        color: '#66bb6a',
+        backgroundColor: '#000000aa',
+        padding: { x: 10, y: 6 },
+        stroke: '#000000',
+        strokeThickness: 3
+      })
+      .setOrigin(1, 0)
       .setDepth(21)
       .setScrollFactor(0)
       .setVisible(false);

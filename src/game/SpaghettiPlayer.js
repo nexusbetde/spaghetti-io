@@ -20,6 +20,7 @@ export default class SpaghettiPlayer {
     // === Bewegung ===
     this.baseSpeed = options.baseSpeed ?? 3.84;  // 20% schneller als zuvor (3.2)
     this.boostSpeed = options.boostSpeed ?? 7.2; // 20% schneller als zuvor (6.0)
+    this.sprintSpeed = options.sprintSpeed ?? 10.35; // Mitte zwischen Boost und Rampage, fuer Pepperoncini-Powerup
     this.rampageSpeed = options.rampageSpeed ?? 13.5; // ~1.9x boost — Komet-Modus waehrend Chili-Rampage
     this.isBoosting = false;
 
@@ -69,6 +70,13 @@ export default class SpaghettiPlayer {
     this.rampageAura = null;
     this.rampageAuraTween = null;
 
+    // === Sprint-Mode (Pepperoncini Powerup) ===
+    // Solange aktiv: nur Speed-Bump auf sprintSpeed. Kein Schutz, kein Kill.
+    this.isSprinting = false;
+    this.sprintEndsAt = 0;
+    this.sprintAura = null;
+    this.sprintAuraTween = null;
+
     // === Name-Label (optional, fuer Bots oder als "You"-Marker) ===
     this.name = options.name ?? null;
     this.nameLabel = null;
@@ -105,6 +113,13 @@ export default class SpaghettiPlayer {
       }
     }
 
+    // Sprint-Timeout pruefen
+    if (this.isSprinting) {
+      if (this.scene.time.now >= this.sprintEndsAt) {
+        this.deactivateSprint();
+      }
+    }
+
     // 1) Bewege den Kopf in Richtung Ziel
     const dx = targetX - this.headX;
     const dy = targetY - this.headY;
@@ -118,10 +133,12 @@ export default class SpaghettiPlayer {
       return;
     }
 
-    // Speed: Rampage > Boost > Base
+    // Speed: Rampage > Sprint > Boost > Base
     let speed;
     if (this.isRampaging) {
       speed = this.rampageSpeed;
+    } else if (this.isSprinting) {
+      speed = this.sprintSpeed;
     } else if (this.isBoosting) {
       speed = this.boostSpeed;
     } else {
@@ -153,6 +170,7 @@ export default class SpaghettiPlayer {
     this.updateEyes();
     this.updateNameLabel();
     this.updateRampageAura();
+    this.updateSprintAura();
   }
 
   /**
@@ -161,6 +179,15 @@ export default class SpaghettiPlayer {
   updateRampageAura() {
     if (this.rampageAura && this.isRampaging) {
       this.rampageAura.setPosition(this.headX, this.headY);
+    }
+  }
+
+  /**
+   * Positioniert die Sprint-Aura am Kopf, falls aktiv.
+   */
+  updateSprintAura() {
+    if (this.sprintAura && this.isSprinting) {
+      this.sprintAura.setPosition(this.headX, this.headY);
     }
   }
 
@@ -366,9 +393,12 @@ export default class SpaghettiPlayer {
     this.isDead = false;
     this.isBoosting = false;
 
-    // Rampage-Status zuruecksetzen
+    // Rampage- und Sprint-Status zuruecksetzen
     if (this.isRampaging) {
       this.deactivateRampage();
+    }
+    if (this.isSprinting) {
+      this.deactivateSprint();
     }
 
     if (options.segmentCount !== undefined) {
@@ -424,6 +454,7 @@ export default class SpaghettiPlayer {
     this.pupilRight.setVisible(visible);
     if (this.nameLabel) this.nameLabel.setVisible(visible);
     if (this.rampageAura) this.rampageAura.setVisible(visible && this.isRampaging);
+    if (this.sprintAura) this.sprintAura.setVisible(visible && this.isSprinting);
   }
 
   /**
@@ -433,6 +464,7 @@ export default class SpaghettiPlayer {
     this.isDead = true;
     this.isBoosting = false;
     this.deactivateRampage();
+    this.deactivateSprint();
   }
 
   // ---------------------------------------------------------------------------
@@ -503,6 +535,61 @@ export default class SpaghettiPlayer {
     return Math.max(0, this.rampageEndsAt - this.scene.time.now);
   }
 
+  // ---------------------------------------------------------------------------
+  // Sprint-Mode (Pepperoncini Powerup) — nur Speed, kein Schutz, kein Kill
+  // ---------------------------------------------------------------------------
+
+  activateSprint(duration = 5000) {
+    const now = this.scene.time.now;
+    if (this.isSprinting) {
+      this.sprintEndsAt = Math.max(this.sprintEndsAt, now + duration);
+      return;
+    }
+    this.isSprinting = true;
+    this.sprintEndsAt = now + duration;
+
+    if (!this.sprintAura) {
+      this.sprintAura = this.scene.add
+        .circle(this.headX, this.headY, this.headRadius * 1.7, 0x66bb6a, 0.25)
+        .setDepth(4);
+      this.sprintAura.setStrokeStyle(2.5, 0x4caf50, 0.85);
+    } else {
+      this.sprintAura.setPosition(this.headX, this.headY);
+      this.sprintAura.setVisible(true);
+    }
+
+    if (this.sprintAuraTween) this.sprintAuraTween.stop();
+    this.sprintAuraTween = this.scene.tweens.add({
+      targets: this.sprintAura,
+      scale: { from: 0.95, to: 1.18 },
+      alpha: { from: 0.25, to: 0.5 },
+      duration: 380,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+  }
+
+  deactivateSprint() {
+    if (!this.isSprinting) return;
+    this.isSprinting = false;
+    this.sprintEndsAt = 0;
+    if (this.sprintAuraTween) {
+      this.sprintAuraTween.stop();
+      this.sprintAuraTween = null;
+    }
+    if (this.sprintAura) {
+      this.sprintAura.setVisible(false);
+      this.sprintAura.setScale(1);
+      this.sprintAura.setAlpha(0.25);
+    }
+  }
+
+  sprintMillisLeft() {
+    if (!this.isSprinting) return 0;
+    return Math.max(0, this.sprintEndsAt - this.scene.time.now);
+  }
+
   /**
    * Sauberes Aufraeumen — wichtig fuer spaeter, wenn wir Scenes wechseln.
    */
@@ -515,5 +602,7 @@ export default class SpaghettiPlayer {
     if (this.nameLabel) this.nameLabel.destroy();
     if (this.rampageAuraTween) this.rampageAuraTween.stop();
     if (this.rampageAura) this.rampageAura.destroy();
+    if (this.sprintAuraTween) this.sprintAuraTween.stop();
+    if (this.sprintAura) this.sprintAura.destroy();
   }
 }

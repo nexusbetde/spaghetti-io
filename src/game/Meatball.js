@@ -35,6 +35,16 @@ export const MEATBALL_TYPES = {
     value: 25,
     growth: 10
   },
+  pepperoncini: {
+    // Gruene Kapsel, mittlere Power: 5s Sprint ohne Invincibility/Kill
+    color: 0x66bb6a,
+    outline: 0x2e7d32,
+    highlight: 0xc8e6c9,
+    radius: 12,
+    value: 10,
+    growth: 5,
+    sprintDuration: 5000
+  },
   chili: {
     // Chili nutzt eigenes Rendering; Felder hier sind nur fuer die Logik
     color: 0xff1f1f,
@@ -49,9 +59,10 @@ export const MEATBALL_TYPES = {
 
 // Spawn-Wahrscheinlichkeiten — pro neuem Spawn-Event
 const SPAWN_PROBABILITIES = {
-  chili: 0.012,    // ~1.2% — sichtbar, aber immer noch besonders
-  truffle: 0.03,   // ~3%
-  golden: 0.08     // ~8%
+  chili: 0.012,         // ~1.2% — Rampage, am seltensten
+  pepperoncini: 0.025,  // ~2.5% — Sprint, dazwischen
+  truffle: 0.03,        // ~3% — Mega-Punkte, uncommon
+  golden: 0.08          // ~8% — Standard-Bonus
 };
 
 export default class Meatball {
@@ -66,9 +77,20 @@ export default class Meatball {
     this.value = cfg.value;
     this.growth = cfg.growth;
     this.rampageDuration = cfg.rampageDuration ?? 0;
+    this.sprintDuration = cfg.sprintDuration ?? 0;
 
     if (type === 'chili') {
-      this.createChiliVisuals(x, y, cfg);
+      this.createCapsuleVisuals(x, y, cfg, {
+        stemColor: 0x4caf50,
+        stemOutline: 0x2e7d32,
+        leafColor: 0x66bb6a
+      });
+    } else if (type === 'pepperoncini') {
+      this.createCapsuleVisuals(x, y, cfg, {
+        stemColor: 0x8d6e63,        // brauner Stiel kontrastiert mit gruenem Body
+        stemOutline: 0x5d4037,
+        leafColor: 0xa5d6a7
+      });
     } else {
       this.createBallVisuals(x, y, cfg);
     }
@@ -111,32 +133,31 @@ export default class Meatball {
   }
 
   // ---------------------------------------------------------------------------
-  // Custom-Rendering fuer Chili-Pepper (Capsule + Stiel)
+  // Custom-Rendering fuer Kapsel-Powerups (Chili-Pepper, Pepperoncini)
   // ---------------------------------------------------------------------------
 
-  createChiliVisuals(x, y, cfg) {
+  createCapsuleVisuals(x, y, cfg, palette) {
     // Container damit Wobble + Position alles zusammenhaelt
     this.container = this.scene.add.container(x, y).setDepth(3);
 
-    // Body: rote Capsule (Ellipse)
+    // Body: ovale Kapsel
     const body = this.scene.add.ellipse(0, 2, 16, 26, cfg.color);
     body.setStrokeStyle(2.5, cfg.outline);
 
     // Glanzlicht oben links
     const highlight = this.scene.add.ellipse(-3, -4, 4, 8, cfg.highlight, 0.6);
 
-    // Stiel (gruen)
-    const stem = this.scene.add.rectangle(0, -13, 6, 7, 0x4caf50);
-    stem.setStrokeStyle(1.5, 0x2e7d32);
+    // Stiel
+    const stem = this.scene.add.rectangle(0, -13, 6, 7, palette.stemColor);
+    stem.setStrokeStyle(1.5, palette.stemOutline);
 
-    // Kleines gruenes Blatt am Stiel
-    const leaf = this.scene.add.triangle(4, -15, 0, 0, 6, -1, 4, 4, 0x66bb6a);
-    leaf.setStrokeStyle(1, 0x2e7d32);
+    // Kleines Blatt
+    const leaf = this.scene.add.triangle(4, -15, 0, 0, 6, -1, 4, 4, palette.leafColor);
+    leaf.setStrokeStyle(1, palette.stemOutline);
 
     this.container.add([body, stem, leaf, highlight]);
-    this.chiliBody = body;
 
-    // Wobble — die Chili wackelt sehr "lebhaft"
+    // Wobble — wackelt lebhaft
     this.wobbleTween = this.scene.tweens.add({
       targets: this.container,
       angle: { from: -18, to: 18 },
@@ -221,11 +242,14 @@ export default class Meatball {
 
   /**
    * Waehlt den Typ unter Beachtung der Caps und Wahrscheinlichkeiten.
-   * @param counts - { truffle: N, chili: N }
+   * @param counts - { truffle: N, chili: N, pepperoncini: N }
    */
   static pickType(counts) {
     if (counts.chili < 1 && Math.random() < SPAWN_PROBABILITIES.chili) {
       return 'chili';
+    }
+    if (counts.pepperoncini < 2 && Math.random() < SPAWN_PROBABILITIES.pepperoncini) {
+      return 'pepperoncini';
     }
     if (counts.truffle < 3 && Math.random() < SPAWN_PROBABILITIES.truffle) {
       return 'truffle';

@@ -353,6 +353,33 @@ export default class SoundManager {
   }
 
   /**
+   * Aufsteigende Doppel-Note beim Sprint-Start (Pepperoncini).
+   * Kuerzer und heller als Rampage — signalisiert 'kleines Power-up'.
+   */
+  playSprintStart() {
+    const ctx = this.audioReady();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const dest = this.masterGain;
+
+    // Schneller Triangle-Aufstieg G5 -> C6
+    const notes = [784, 1047];
+    notes.forEach((freq, i) => {
+      const offset = i * 0.06;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t + offset);
+      gain.gain.linearRampToValueAtTime(0.14, t + offset + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + offset + 0.2);
+      osc.connect(gain).connect(dest);
+      osc.start(t + offset);
+      osc.stop(t + offset + 0.22);
+    });
+  }
+
+  /**
    * Helper: gibt den Context zurueck wenn alles ready ist, sonst null.
    * Versteckt die three guards (muted / no-ctx / suspended).
    */
