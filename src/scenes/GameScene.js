@@ -4,6 +4,7 @@ import BotAI, { BOT_PALETTES } from '../game/BotAI.js';
 import TutorialOverlay from '../ui/TutorialOverlay.js';
 import GameOverScreen from '../ui/GameOverScreen.js';
 import Leaderboard from '../ui/Leaderboard.js';
+import MiniMap from '../ui/MiniMap.js';
 import SoundManager from '../audio/SoundManager.js';
 import { t } from '../i18n.js';
 import {
@@ -38,6 +39,9 @@ const BOT_RESPAWN_DELAY_MIN = 2200;
 const BOT_RESPAWN_DELAY_MAX = 4500;
 const PLAYER_KILL_BONUS = 50;
 
+// Score-Multiplikator waehrend Rampage (2x fuer alles)
+const SCORE_MULT_RAMPAGE = 2;
+
 // Snake-Kollision
 const SELF_COLLISION_SAFE_SEGMENTS = 12;
 
@@ -68,6 +72,7 @@ export default class GameScene extends Phaser.Scene {
 
     // === Hintergrund (fuellt die GANZE Welt, nicht nur den Viewport) ===
     this.drawCheckerboard();
+    this.drawBackgroundDecorations();
     this.drawWorldBorder();
 
     // === Spieler in der Weltmitte ===
@@ -94,6 +99,11 @@ export default class GameScene extends Phaser.Scene {
     this.meatballs = [];
     this.bots = [];
 
+    // Stats fuer Game-Over-Screen
+    this.killCount = 0;
+    this.mealsEaten = 0;
+    this.gameStartTime = this.time.now; // wird beim ersten Player-Move neu gesetzt
+
     this.inputEnabled = false;
     this.spawnTime = this.time.now;
     this.hasMoved = false;
@@ -117,6 +127,18 @@ export default class GameScene extends Phaser.Scene {
 
     // Leaderboard rechts oberhalb des Best-Badges (oder ganz oben links)
     this.leaderboard = new Leaderboard(this, 16, 56);
+
+    // Mini-Map unten links (16:9 wie die Welt)
+    const mapW = 200;
+    const mapH = Math.round(mapW * (WORLD_HEIGHT / WORLD_WIDTH));
+    this.miniMap = new MiniMap(
+      this,
+      16,
+      this.scale.height - mapH - 16,
+      mapW,
+      mapH,
+      this.worldBounds
+    );
 
     // Tutorial / Start-Hinweis
     if (!hasSeenTutorial()) {
@@ -201,6 +223,7 @@ export default class GameScene extends Phaser.Scene {
     this.boostIndicator.setVisible(this.player.isBoosting && !this.player.isRampaging);
     this.lengthText.setText(`${t('hud_length')}: ${this.player.length}`);
     this.leaderboard.update(this.collectLeaderboardEntries());
+    this.miniMap.update(this.collectActiveSnakes(), this.meatballs);
     this.updateRampageHUD();
   }
 
@@ -364,15 +387,19 @@ export default class GameScene extends Phaser.Scene {
 
   /**
    * Belohnung wenn der Spieler im Rampage einen Bot killt.
+   * 2x Score-Multiplikator passend zum Rampage-Bonus.
    */
   awardRampageKill(x, y) {
-    this.score += PLAYER_KILL_BONUS;
+    const bonus = PLAYER_KILL_BONUS * SCORE_MULT_RAMPAGE;
+    this.score += bonus;
+    this.killCount++;
     this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
     this.popScore();
     this.sfx?.playRampageKill();
+    this.playKillImpact(x, y);
 
     const txt = this.add
-      .text(x, y, `+${PLAYER_KILL_BONUS} RAMPAGE`, {
+      .text(x, y, `+${bonus} RAMPAGE`, {
         fontFamily: 'Arial Black, sans-serif',
         fontSize: '24px',
         color: '#ff5555',
@@ -416,9 +443,11 @@ export default class GameScene extends Phaser.Scene {
 
   awardKillBonus(x, y) {
     this.score += PLAYER_KILL_BONUS;
+    this.killCount++;
     this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
     this.popScore();
     this.sfx?.playKillBonus();
+    this.playKillImpact(x, y);
 
     // Schwebender Bonus-Text an der Welt-Position des Kills
     const txt = this.add
@@ -440,6 +469,28 @@ export default class GameScene extends Phaser.Scene {
       duration: 1200,
       ease: 'Cubic.easeOut',
       onComplete: () => txt.destroy()
+    });
+  }
+
+  /**
+   * Visueller + kamera-basierter Kill-Impact: Camera-Shake + weisser
+   * expandierender Ring. Ersetzt das 'Hit-Stop' das via timeScale Tweens
+   * stoeren wuerde.
+   */
+  playKillImpact(x, y) {
+    this.cameras.main.shake(120, 0.005);
+
+    const ring = this.add
+      .circle(x, y, 24, 0xffffff, 0.5)
+      .setDepth(20);
+    ring.setStrokeStyle(3, 0xffffff, 0.8);
+    this.tweens.add({
+      targets: ring,
+      scale: 2.6,
+      alpha: 0,
+      duration: 280,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy()
     });
   }
 
@@ -473,6 +524,9 @@ export default class GameScene extends Phaser.Scene {
         highscore: isNewBest ? this.score : previousBest,
         isNewHighscore: isNewBest,
         cause,
+        kills: this.killCount,
+        mealsEaten: this.mealsEaten,
+        survivedMs: this.hasMoved ? this.time.now - this.gameStartTime : 0,
         onRestart: () => this.restart()
       });
     });
@@ -678,7 +732,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (snake === this.player) {
-      this.score += meatball.value;
+      // Score-Multiplikator wenn waehrend Rampage gegessen
+      const multiplier = this.player.isRampaging ? SCORE_MULT_RAMPAGE : 1;
+      const scoreGain = meatball.value * multiplier;
+      this.score += scoreGain;
+      this.mealsEaten++;
       this.scoreText.setText(`${t('hud_score')}: ${this.score}`);
       this.popScore();
 
@@ -690,7 +748,7 @@ export default class GameScene extends Phaser.Scene {
       }
 
       const isSpecial = meatball.type === 'golden' || meatball.type === 'truffle' || meatball.type === 'chili' || meatball.type === 'pepperoncini';
-      this.showEatBurst(meatball.x, meatball.y, meatball.value, isSpecial, meatball.type);
+      this.showEatBurst(meatball.x, meatball.y, scoreGain, isSpecial, meatball.type, multiplier);
     }
 
     meatball.destroy();
@@ -735,16 +793,17 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  showEatBurst(x, y, points, isGolden, type) {
+  showEatBurst(x, y, points, isGolden, type, multiplier = 1) {
     const isTruffle = type === 'truffle';
     const isChili = type === 'chili';
     const isPepperoncini = type === 'pepperoncini';
 
     const text = this.add
-      .text(x, y, `+${points}`, {
+      .text(x, y, multiplier > 1 ? `+${points} \u00D7${multiplier}` : `+${points}`, {
         fontFamily: 'Arial Black, sans-serif',
-        fontSize: (isGolden || isTruffle || isChili || isPepperoncini) ? '34px' : '22px',
-        color: isTruffle ? '#ba68c8'
+        fontSize: (isGolden || isTruffle || isChili || isPepperoncini || multiplier > 1) ? '34px' : '22px',
+        color: multiplier > 1 ? '#ff5555'
+          : isTruffle ? '#ba68c8'
           : isChili ? '#ff5555'
           : isPepperoncini ? '#66bb6a'
           : isGolden ? '#ffd700'
@@ -869,6 +928,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.hasMoved) return;
     this.hasMoved = true;
     this.spawnTime = this.time.now;
+    this.gameStartTime = this.time.now;  // Stats-Timer startet ab erstem Move
     this.fadeStartHint();
   }
 
@@ -1245,6 +1305,56 @@ export default class GameScene extends Phaser.Scene {
         graphics.fillStyle(isEven ? 0xc41e3a : 0xffffff, 0.10);
         graphics.fillRect(x, y, tileSize, tileSize);
       }
+    }
+  }
+
+  /**
+   * Streut italienische Deko (Teller, Tomaten, Pasta-Patches) ueber die
+   * Welt — niedrige Depth, niedrige Alpha, soll nur dafuer sorgen dass
+   * die grosse Karte nicht 'leer' wirkt.
+   */
+  drawBackgroundDecorations() {
+    const g = this.add.graphics().setDepth(0.5);
+
+    // 10 grosse 'Teller' (braun-beige, semi-transparent)
+    for (let i = 0; i < 10; i++) {
+      const x = Phaser.Math.Between(180, WORLD_WIDTH - 180);
+      const y = Phaser.Math.Between(180, WORLD_HEIGHT - 180);
+      const r = Phaser.Math.Between(90, 160);
+
+      g.fillStyle(0xc99e6b, 0.06);
+      g.fillCircle(x, y, r);
+      g.lineStyle(2, 0x8b6332, 0.18);
+      g.strokeCircle(x, y, r);
+      // Innerer Teller-Rand
+      g.lineStyle(1, 0x8b6332, 0.12);
+      g.strokeCircle(x, y, r * 0.78);
+    }
+
+    // 20 kleinere 'Tomaten' (rot)
+    for (let i = 0; i < 20; i++) {
+      const x = Phaser.Math.Between(60, WORLD_WIDTH - 60);
+      const y = Phaser.Math.Between(60, WORLD_HEIGHT - 60);
+      const r = Phaser.Math.Between(18, 32);
+      g.fillStyle(0xc41e3a, 0.10);
+      g.fillCircle(x, y, r);
+      // Kleines gruenes Blatt oben
+      g.fillStyle(0x4caf50, 0.18);
+      g.fillTriangle(x - r * 0.3, y - r * 0.9, x + r * 0.3, y - r * 0.9, x, y - r * 1.2);
+    }
+
+    // 6 kleine Italo-Flagge-Patches (gruen/weiss/rot vertikal)
+    for (let i = 0; i < 6; i++) {
+      const x = Phaser.Math.Between(120, WORLD_WIDTH - 120);
+      const y = Phaser.Math.Between(120, WORLD_HEIGHT - 120);
+      const w = 30;
+      const h = 20;
+      g.fillStyle(0x008c45, 0.16); // gruen
+      g.fillRect(x - w * 1.5, y - h / 2, w, h);
+      g.fillStyle(0xf4f5f0, 0.18); // weiss
+      g.fillRect(x - w * 0.5, y - h / 2, w, h);
+      g.fillStyle(0xcd212a, 0.16); // rot
+      g.fillRect(x + w * 0.5, y - h / 2, w, h);
     }
   }
 

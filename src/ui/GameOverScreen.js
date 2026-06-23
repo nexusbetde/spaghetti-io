@@ -18,7 +18,7 @@ import { t } from '../i18n.js';
  * Visually framed by a dark semi-transparent backdrop and a sauce-red panel.
  */
 export default class GameOverScreen {
-  constructor(scene, { score, length, highscore, isNewHighscore, cause, onRestart }) {
+  constructor(scene, { score, length, highscore, isNewHighscore, cause, onRestart, kills = 0, mealsEaten = 0, survivedMs = 0 }) {
     this.scene = scene;
     this.score = score;
     this.length = length;
@@ -26,9 +26,20 @@ export default class GameOverScreen {
     this.isNewHighscore = isNewHighscore;
     this.cause = cause;
     this.onRestart = onRestart;
+    this.kills = kills;
+    this.mealsEaten = mealsEaten;
+    this.survivedMs = survivedMs;
 
     this.objects = [];
     this.build();
+  }
+
+  formatTime(ms) {
+    const totalSec = Math.max(0, Math.floor(ms / 1000));
+    if (totalSec < 60) return `${totalSec}s`;
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${mins}m ${secs}s`;
   }
 
   build() {
@@ -41,9 +52,9 @@ export default class GameOverScreen {
       .setInteractive(); // blocks gameplay interactions underneath
     this.objects.push(backdrop);
 
-    // Card panel
-    const cardWidth = Math.min(560, width - 60);
-    const cardHeight = 460;
+    // Card panel — etwas groesser fuer Stats
+    const cardWidth = Math.min(580, width - 60);
+    const cardHeight = 540;
     const cardX = width / 2;
     const cardY = height / 2;
 
@@ -102,26 +113,47 @@ export default class GameOverScreen {
     this.objects.push(causeLine);
 
     // ---------------------------------------------------------------------
-    // Stats block
+    // Stats block — zweispaltig fuer kompaktere Anzeige
     // ---------------------------------------------------------------------
-    const statsY = cardY - 50;
-    const lineSpacing = 42;
+    const statsY = cardY - 80;
+    const lineSpacing = 38;
+    const colSpread = 90; // wie weit Score/Kills auseinander liegen
 
+    // Reihe 1: Score | Kills
     this.objects.push(
-      this.buildStatLine(cardX, statsY, t('game_over_score'), String(this.score), '#ffd700')
+      this.buildStatLine(cardX - colSpread, statsY, t('game_over_score'), String(this.score), '#ffd700')
     );
     this.objects.push(
-      this.buildStatLine(cardX, statsY + lineSpacing, t('game_over_length'), String(this.length), '#ffffff')
+      this.buildStatLine(cardX + colSpread, statsY, t('stats_kills'), String(this.kills), '#ff6b35')
     );
+
+    // Reihe 2: Length | Eaten
+    this.objects.push(
+      this.buildStatLine(cardX - colSpread, statsY + lineSpacing, t('game_over_length'), String(this.length), '#ffffff')
+    );
+    this.objects.push(
+      this.buildStatLine(cardX + colSpread, statsY + lineSpacing, t('stats_eaten'), String(this.mealsEaten), '#ffffff')
+    );
+
+    // Reihe 3: Time (zentriert)
+    const timeLabel = this.scene.add
+      .text(cardX, statsY + lineSpacing * 2, `${t('stats_time')}: ${this.formatTime(this.survivedMs)}`, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '22px',
+        color: '#cccccc'
+      })
+      .setOrigin(0.5)
+      .setDepth(202);
+    this.objects.push(timeLabel);
 
     // Best line — special treatment if it's a new best
     if (this.isNewHighscore) {
-      this.buildNewBestRow(cardX, statsY + lineSpacing * 2);
+      this.buildNewBestRow(cardX, statsY + lineSpacing * 3 + 10);
     } else {
       this.objects.push(
         this.buildStatLine(
           cardX,
-          statsY + lineSpacing * 2,
+          statsY + lineSpacing * 3 + 10,
           t('game_over_best'),
           String(this.highscore),
           '#cccccc'
@@ -139,29 +171,29 @@ export default class GameOverScreen {
   }
 
   buildStatLine(x, y, label, value, valueColor) {
-    // Layout: left-aligned label + right-aligned value, both around center
+    // Label oben, Wert darunter — kompakt fuer Stats-Grid
     const labelText = this.scene.add
-      .text(x - 30, y, `${label}:`, {
+      .text(x, y - 9, `${label}`, {
         fontFamily: 'Arial, sans-serif',
-        fontSize: '24px',
-        color: '#ffffff'
+        fontSize: '14px',
+        color: '#aaaaaa'
       })
-      .setOrigin(1, 0.5)
+      .setOrigin(0.5)
       .setDepth(202);
 
     const valueText = this.scene.add
-      .text(x + 30, y, value, {
+      .text(x, y + 9, value, {
         fontFamily: 'Arial Black, sans-serif',
-        fontSize: '28px',
+        fontSize: '26px',
         color: valueColor,
         stroke: '#000000',
         strokeThickness: 4
       })
-      .setOrigin(0, 0.5)
+      .setOrigin(0.5)
       .setDepth(202);
 
     this.objects.push(labelText);
-    return valueText; // returns the value text for potential extra animation
+    return valueText;
   }
 
   /**

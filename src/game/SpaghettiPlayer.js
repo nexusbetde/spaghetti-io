@@ -63,6 +63,9 @@ export default class SpaghettiPlayer {
     // Wird auf true gesetzt sobald der Spieler stirbt, stoppt update() und draw().
     this.isDead = false;
 
+    // === Trail-Partikel (waehrend Boost/Sprint/Rampage) ===
+    this.lastTrailTime = 0;
+
     // === Rampage-Mode (Chili-Pepper Powerup) ===
     // Solange aktiv: unsterblich, Auto-Boost, tot jeden anderen Snake bei Beruehrung
     this.isRampaging = false;
@@ -171,6 +174,37 @@ export default class SpaghettiPlayer {
     this.updateNameLabel();
     this.updateRampageAura();
     this.updateSprintAura();
+    this.maybeSpawnTrailParticle();
+  }
+
+  /**
+   * Spawnt ein verblassendes Trail-Partikel hinter dem Kopf, wenn Boost/
+   * Sprint/Rampage aktiv ist. Color matched die Speed-Stufe.
+   */
+  maybeSpawnTrailParticle() {
+    if (!this.isBoosting && !this.isSprinting && !this.isRampaging) return;
+
+    const now = this.scene.time.now;
+    if (now - this.lastTrailTime < 50) return; // Throttle ~20/s
+    this.lastTrailTime = now;
+
+    let color;
+    if (this.isRampaging) color = 0xff2222;
+    else if (this.isSprinting) color = 0x66bb6a;
+    else color = 0xff6b35;
+
+    const p = this.scene.add
+      .circle(this.headX, this.headY, this.headRadius * 0.55, color, 0.65)
+      .setDepth(4);
+
+    this.scene.tweens.add({
+      targets: p,
+      scale: { from: 0.9, to: 0.2 },
+      alpha: { from: 0.65, to: 0 },
+      duration: 380,
+      ease: 'Cubic.easeOut',
+      onComplete: () => p.destroy()
+    });
   }
 
   /**
