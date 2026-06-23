@@ -59,7 +59,7 @@ export const MEATBALL_TYPES = {
 
 // Spawn-Wahrscheinlichkeiten — pro neuem Spawn-Event
 const SPAWN_PROBABILITIES = {
-  chili: 0.012,         // ~1.2% — Rampage, am seltensten
+  chili: 0.005,         // ~0.5% — extra rar, fuehlt sich besonders an
   pepperoncini: 0.025,  // ~2.5% — Sprint, dazwischen
   truffle: 0.03,        // ~3% — Mega-Punkte, uncommon
   golden: 0.08          // ~8% — Standard-Bonus
