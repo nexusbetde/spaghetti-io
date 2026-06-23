@@ -45,7 +45,9 @@ const messages = {
     game_over_length: 'Length',
     game_over_best: 'Best',
     game_over_new_best: 'NEW BEST!',
-    game_over_play_again: 'Play Again'
+    game_over_play_again: 'Play Again',
+    game_over_revive: 'Watch ad to revive',
+    game_over_revive_failed: 'Ad not available'
   },
   de: {
     tutorial_title: 'Steuerung',
@@ -76,7 +78,9 @@ const messages = {
     game_over_length: 'Länge',
     game_over_best: 'Bestleistung',
     game_over_new_best: 'NEUER REKORD!',
-    game_over_play_again: 'Nochmal spielen'
+    game_over_play_again: 'Nochmal spielen',
+    game_over_revive: 'Werbung schauen für Revive',
+    game_over_revive_failed: 'Keine Werbung verfügbar'
   }
 };
 

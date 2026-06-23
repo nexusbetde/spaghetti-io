@@ -56,14 +56,18 @@ spaghetti-io/
 
 - [x] Schritt 1: Projekt-Setup
 - [x] Schritt 2: Spaghetti-Spieler steuern (Maus/Touch + Boost)
-- [x] Schritt 3: Fleischbaellchen essen, wachsen und Score
+- [x] Schritt 3: Fleischbällchen essen, wachsen und Score
 - [x] Schritt 3.5: CrazyGames Polish (i18n, Tutorial, Mobile-Boost-Button)
 - [x] Schritt 4: Kollision, Tod, Game Over, Highscore, Restart
 - [x] Schritt 5: KI-Bots, Multi-Snake-PvP, Leaderboard
 - [x] Schritt 6: Sounds + Polish
-- [x] Schritt 7: Powerups (Truffle + Chili-Rampage)
-- [ ] Schritt 8: CrazyGames SDK + Deployment
+- [x] Schritt 7: Powerups (Truffle + Pepperoncini + Chili-Rampage)
+- [x] Schritt 8: Mini-Map, Stats, Score-Multi, Trail, Hit-Stop, Decorations
+- [x] Schritt 9: CrazyGames SDK + Deployment-ready 🚀
 
-## Deployment zu Crazy Games
+## Deployment
+
+Vollständige Schritt-für-Schritt-Anleitung in **[DEPLOYMENT.md](./DEPLOYMENT.md)** —
+vom ZIP-Erstellen bis zum Launch auf [CrazyGames](https://crazygames.com).
 
 Sobald das Spiel fertig ist, wird der gesamte Ordner als zip-Datei zu Crazy Games hochgeladen. Die Plattform serviert dann `index.html` direkt.

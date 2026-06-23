@@ -6,6 +6,7 @@ import GameOverScreen from '../ui/GameOverScreen.js';
 import Leaderboard from '../ui/Leaderboard.js';
 import MiniMap from '../ui/MiniMap.js';
 import SoundManager from '../audio/SoundManager.js';
+import CrazyGamesAdapter from '../integrations/CrazyGamesAdapter.js';
 import { t } from '../i18n.js';
 import {
   isTouchDevice,
@@ -70,6 +71,9 @@ export default class GameScene extends Phaser.Scene {
       this.input.keyboard.once('keydown', () => this.sfx.unlock());
     }
 
+    // === CrazyGames SDK ===
+    this.cg = new CrazyGamesAdapter();
+
     // === Hintergrund (fuellt die GANZE Welt, nicht nur den Viewport) ===
     this.drawCheckerboard();
     this.drawBackgroundDecorations();
@@ -103,6 +107,9 @@ export default class GameScene extends Phaser.Scene {
     this.killCount = 0;
     this.mealsEaten = 0;
     this.gameStartTime = this.time.now; // wird beim ersten Player-Move neu gesetzt
+
+    // Revive-Tracking: nur 1 Revive pro Game erlaubt
+    this.hasUsedRevive = false;
 
     this.inputEnabled = false;
     this.spawnTime = this.time.now;
@@ -150,12 +157,16 @@ export default class GameScene extends Phaser.Scene {
           this.spawnTime = this.time.now;
           this.showStartHint();
           this.showGoalBanner();
+          // CrazyGames: aktive Gameplay-Phase startet
+          this.cg.gameplayStart();
         }
       });
     } else {
       this.inputEnabled = true;
       this.showStartHint();
       this.showGoalBanner();
+      // CrazyGames: aktive Gameplay-Phase startet
+      this.cg.gameplayStart();
     }
   }
 
@@ -504,6 +515,16 @@ export default class GameScene extends Phaser.Scene {
 
     const deathData = this.player.captureDeathState();
 
+    // CrazyGames: Gameplay endet — ab jetzt sind Ads OK
+    this.cg.gameplayStop();
+
+    // Death-Snapshot fuer evtl. Revive
+    this.deathSnapshot = {
+      length: deathData.segments.length,
+      headX: deathData.headX,
+      headY: deathData.headY
+    };
+
     this.player.kill();
     this.player.setVisible(false);
 
@@ -516,6 +537,10 @@ export default class GameScene extends Phaser.Scene {
 
     const previousBest = getHighScore();
     const isNewBest = maybeSetHighScore(this.score);
+    if (isNewBest) {
+      // Highscore = happytime!
+      this.cg.happytime();
+    }
 
     this.time.delayedCall(DEATH_ANIM_DURATION, () => {
       this.gameOverScreen = new GameOverScreen(this, {
@@ -527,9 +552,56 @@ export default class GameScene extends Phaser.Scene {
         kills: this.killCount,
         mealsEaten: this.mealsEaten,
         survivedMs: this.hasMoved ? this.time.now - this.gameStartTime : 0,
+        // Revive nur einmal pro Spielsession und nur wenn SDK verfuegbar
+        canRevive: !this.hasUsedRevive && this.cg.isAvailable(),
+        onRevive: () => this.requestRevive(),
         onRestart: () => this.restart()
       });
     });
+  }
+
+  /**
+   * Rewarded-Ad anfordern; bei Erfolg Spieler wiederbeleben.
+   * @returns true wenn revive erfolgreich
+   */
+  async requestRevive() {
+    if (this.hasUsedRevive || !this.deathSnapshot) return false;
+    const adWatched = await this.cg.requestRewardedAd();
+    if (!adWatched) {
+      // SDK nicht aktiv oder Ad abgebrochen — Revive nicht moeglich
+      return false;
+    }
+
+    // Erfolg: Wiederbeleben
+    this.hasUsedRevive = true;
+    this.revivePlayer();
+    return true;
+  }
+
+  revivePlayer() {
+    if (!this.deathSnapshot) return;
+
+    // Game Over Screen schliessen
+    if (this.gameOverScreen) {
+      this.gameOverScreen.destroy();
+      this.gameOverScreen = null;
+    }
+
+    this.gameOver = false;
+
+    // Sicheren Spawn finden (nicht direkt im Bot-Gewuehl)
+    const pos = this.findSafeSpawnPoint();
+    this.player.respawn(pos.x, pos.y, { segmentCount: this.deathSnapshot.length });
+
+    // Schongraefrist + visueller Flash, damit Spieler nicht direkt wieder stirbt
+    this.spawnTime = this.time.now;
+    this.cameras.main.flash(450, 255, 255, 255);
+    this.sfx?.playRampageStart(); // dramatischer Sound
+
+    this.deathSnapshot = null;
+
+    // CrazyGames: Gameplay laeuft wieder
+    this.cg.gameplayStart();
   }
 
   restart() {
@@ -717,6 +789,8 @@ export default class GameScene extends Phaser.Scene {
       if (snake === this.player) {
         this.sfx?.playRampageStart();
         this.showRampageStartFlash();
+        // CrazyGames: Chili-Pickup ist ein klassischer 'Happy-Moment'
+        this.cg?.happytime();
       } else {
         // Ein Bot hat den Chili — leiser Sound, damit Spieler gewarnt ist
         this.sfx?.playRampageStart();

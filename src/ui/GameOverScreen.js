@@ -18,7 +18,7 @@ import { t } from '../i18n.js';
  * Visually framed by a dark semi-transparent backdrop and a sauce-red panel.
  */
 export default class GameOverScreen {
-  constructor(scene, { score, length, highscore, isNewHighscore, cause, onRestart, kills = 0, mealsEaten = 0, survivedMs = 0 }) {
+  constructor(scene, { score, length, highscore, isNewHighscore, cause, onRestart, kills = 0, mealsEaten = 0, survivedMs = 0, canRevive = false, onRevive = null }) {
     this.scene = scene;
     this.score = score;
     this.length = length;
@@ -29,6 +29,8 @@ export default class GameOverScreen {
     this.kills = kills;
     this.mealsEaten = mealsEaten;
     this.survivedMs = survivedMs;
+    this.canRevive = canRevive;
+    this.onRevive = onRevive;
 
     this.objects = [];
     this.build();
@@ -54,7 +56,7 @@ export default class GameOverScreen {
 
     // Card panel — etwas groesser fuer Stats
     const cardWidth = Math.min(580, width - 60);
-    const cardHeight = 540;
+    const cardHeight = this.canRevive ? 620 : 540;
     const cardX = width / 2;
     const cardY = height / 2;
 
@@ -162,9 +164,14 @@ export default class GameOverScreen {
     }
 
     // ---------------------------------------------------------------------
-    // Play Again button (big, daumenfreundlich)
+    // Buttons: Revive (optional, oben) + Play Again (unten)
     // ---------------------------------------------------------------------
-    this.buildPlayAgainButton(cardX, cardY + cardHeight / 2 - 60);
+    if (this.canRevive) {
+      this.buildReviveButton(cardX, cardY + cardHeight / 2 - 130);
+      this.buildPlayAgainButton(cardX, cardY + cardHeight / 2 - 50);
+    } else {
+      this.buildPlayAgainButton(cardX, cardY + cardHeight / 2 - 60);
+    }
 
     // GameOverScreen ist Screen-fixed — die Kamera darunter darf weiterlaufen
     this.objects.forEach((o) => o.setScrollFactor && o.setScrollFactor(0));
@@ -304,11 +311,95 @@ export default class GameOverScreen {
       }
     });
 
-    // Idle pulse to draw attention
+    // Idle pulse to draw attention — nur wenn KEINE Revive-Option (sonst stoert es)
+    if (!this.canRevive) {
+      this.scene.tweens.add({
+        targets: [bg, text],
+        scale: { from: 1, to: 1.06 },
+        duration: 800,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    }
+
+    this.objects.push(shadow, bg, text);
+  }
+
+  /**
+   * Revive-Button (gruen) — triggert ein Rewarded-Video.
+   * Sieht nicht aus wie eine UI-Falle: klar gelabelt, Icon + Text.
+   */
+  buildReviveButton(x, y) {
+    const label = `\u{1F3AC}  ${t('game_over_revive')}`;
+    const padX = 30;
+    const padY = 14;
+    const buttonWidth = Math.max(320, label.length * 14 + padX * 2);
+    const buttonHeight = 64;
+
+    const shadow = this.scene.add
+      .rectangle(x + 4, y + 6, buttonWidth, buttonHeight, 0x000000, 0.5)
+      .setDepth(202);
+
+    const bg = this.scene.add
+      .rectangle(x, y, buttonWidth, buttonHeight, 0x43a047, 1)
+      .setDepth(203)
+      .setStrokeStyle(4, 0xffffff)
+      .setInteractive({ useHandCursor: true });
+
+    const text = this.scene.add
+      .text(x, y, label, {
+        fontFamily: 'Arial Black, sans-serif',
+        fontSize: '24px',
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 4
+      })
+      .setOrigin(0.5)
+      .setDepth(204);
+
+    const setState = (scale) => {
+      bg.setScale(scale);
+      text.setScale(scale);
+    };
+
+    bg.on('pointerover', () => setState(1.05));
+    bg.on('pointerout', () => setState(1));
+    bg.on('pointerdown', () => setState(0.95));
+    bg.on('pointerup', async () => {
+      setState(1);
+      this.scene.sfx?.playUIClick();
+
+      // Disable Button waehrend Ad-Request laeuft
+      bg.disableInteractive();
+      const wasGranted = await this.onRevive?.();
+
+      if (!wasGranted) {
+        // Ad fehlgeschlagen — Hinweis zeigen, Button visuell abblassen
+        bg.setFillStyle(0x666666, 1);
+        text.setText(t('game_over_revive_failed'));
+        // Nach 2s automatisch verstecken
+        this.scene.time.delayedCall(2000, () => {
+          this.scene.tweens.add({
+            targets: [bg, text, shadow],
+            alpha: 0,
+            duration: 300,
+            onComplete: () => {
+              bg.destroy();
+              text.destroy();
+              shadow.destroy();
+            }
+          });
+        });
+      }
+      // Bei Erfolg uebernimmt onRevive() das Aufraeumen (closes screen, respawn)
+    });
+
+    // Idle-Pulse zieht die Aufmerksamkeit auf das Revive-Angebot
     this.scene.tweens.add({
       targets: [bg, text],
-      scale: { from: 1, to: 1.06 },
-      duration: 800,
+      scale: { from: 1, to: 1.04 },
+      duration: 700,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
