@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Cover Square 800x800</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { overflow: hidden; }
+.cover {
+  width: 800px;
+  height: 800px;
+  background: linear-gradient(135deg, #1a0a05 0%, #2d1810 40%, #3d2015 100%);
+  position: relative;
+  overflow: hidden;
+  font-family: 'Arial Black', sans-serif;
+}
+.checkerboard {
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  background-image:
+    linear-gradient(45deg, #c41e3a 25%, transparent 25%),
+    linear-gradient(-45deg, #c41e3a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #c41e3a 75%),
+    linear-gradient(-45deg, transparent 75%, #c41e3a 75%);
+  background-size: 60px 60px;
+  background-position: 0 0, 0 30px, 30px -30px, -30px 0;
+}
+.border {
+  position: absolute; inset: 10px;
+  border: 5px solid #c41e3a; border-radius: 4px; opacity: 0.7;
+}
+.meatball {
+  position: absolute; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #d4956a, #8b4513);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+}
+.meatball.golden {
+  background: radial-gradient(circle at 35% 35%, #fff4a3, #ffd700, #b8860b);
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+}
+.meatball.chili {
+  background: radial-gradient(circle at 35% 35%, #ff6b6b, #c41e3a, #8b0000);
+  box-shadow: 0 0 12px rgba(196, 30, 58, 0.5);
+}
+.segment {
+  position: absolute; border-radius: 50%;
+  background: #f5deb3; border: 2px solid #c99e6b;
+}
+.head { background: #ffd700; border-color: #b8860b; z-index: 10; }
+.eye {
+  position: absolute; width: 9px; height: 9px;
+  background: white; border-radius: 50%; z-index: 11;
+}
+.pupil {
+  position: absolute; width: 4px; height: 4px;
+  background: #000; border-radius: 50%; z-index: 12;
+}
+.bot-segment {
+  position: absolute; border-radius: 50%;
+  background: #ff6b6b; border: 2px solid #c41e3a;
+}
+.bot-head { background: #ff4444; border-color: #8b0000; z-index: 8; }
+.bot2-segment {
+  position: absolute; border-radius: 50%;
+  background: #81c784; border: 2px solid #4caf50;
+}
+.bot2-head { background: #66bb6a; border-color: #388e3c; z-index: 8; }
+.rampage-aura {
+  position: absolute; width: 70px; height: 70px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,34,34,0.4) 0%, transparent 70%);
+  border: 3px solid rgba(255,85,85,0.8); z-index: 5;
+  animation: pulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes pulse {
+  from { transform: scale(0.9); opacity: 0.6; }
+  to { transform: scale(1.2); opacity: 1; }
+}
+.title {
+  position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+  text-align: center; z-index: 100;
+}
+.title h1 {
+  font-size: 96px; color: #ffd700;
+  text-shadow: 0 0 15px rgba(255,215,0,0.5), 3px 3px 0 #8b0000, 6px 6px 0 rgba(0,0,0,0.5);
+  letter-spacing: -2px; line-height: 1;
+}
+.title .subtitle {
+  font-size: 26px; color: #fff;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+  margin-top: 10px; letter-spacing: 4px;
+}
+.vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.6) 100%);
+  z-index: 50; pointer-events: none;
+}
+.rampage-border {
+  position: absolute; inset: 0;
+  border: 14px solid rgba(255, 34, 34, 0.35); z-index: 45;
+}
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="checkerboard"></div>
+  <div class="border"></div>
+  <div class="rampage-border"></div>
+
+  <!-- Meatballs -->
+  <div class="meatball" style="width:24px;height:24px;top:350px;left:100px"></div>
+  <div class="meatball golden" style="width:28px;height:28px;top:600px;left:650px"></div>
+  <div class="meatball" style="width:20px;height:20px;top:700px;left:120px"></div>
+  <div class="meatball chili" style="width:26px;height:26px;top:300px;left:650px"></div>
+  <div class="meatball" style="width:22px;height:22px;top:680px;left:400px"></div>
+  <div class="meatball golden" style="width:24px;height:24px;top:250px;left:180px"></div>
+
+  <!-- Player snake (center, curving) -->
+  <div class="rampage-aura" style="top:420px;left:385px"></div>
+  <div class="segment" style="width:18px;height:18px;top:520px;left:240px"></div>
+  <div class="segment" style="width:20px;height:20px;top:510px;left:265px"></div>
+  <div class="segment" style="width:22px;height:22px;top:498px;left:290px"></div>
+  <div class="segment" style="width:23px;height:23px;top:484px;left:316px"></div>
+  <div class="segment" style="width:25px;height:25px;top:470px;left:342px"></div>
+  <div class="segment" style="width:26px;height:26px;top:456px;left:368px"></div>
+  <div class="segment" style="width:27px;height:27px;top:444px;left:394px"></div>
+  <div class="segment head" style="width:34px;height:34px;top:434px;left:420px"></div>
+  <div class="eye" style="top:438px;left:445px"></div>
+  <div class="eye" style="top:450px;left:445px"></div>
+  <div class="pupil" style="top:440px;left:448px"></div>
+  <div class="pupil" style="top:452px;left:448px"></div>
+
+  <!-- Bot red -->
+  <div class="bot-segment" style="width:16px;height:16px;top:560px;left:520px"></div>
+  <div class="bot-segment" style="width:18px;height:18px;top:572px;left:542px"></div>
+  <div class="bot-segment" style="width:20px;height:20px;top:582px;left:566px"></div>
+  <div class="bot-segment bot-head" style="width:26px;height:26px;top:588px;left:592px"></div>
+
+  <!-- Bot green -->
+  <div class="bot2-segment" style="width:14px;height:14px;top:380px;left:550px"></div>
+  <div class="bot2-segment" style="width:16px;height:16px;top:370px;left:572px"></div>
+  <div class="bot2-segment" style="width:18px;height:18px;top:362px;left:596px"></div>
+  <div class="bot2-segment bot2-head" style="width:24px;height:24px;top:356px;left:622px"></div>
+
+  <!-- Title -->
+  <div class="title">
+    <h1>SPAGHETTI.IO</h1>
+    <div class="subtitle">EAT. GROW. DOMINATE.</div>
+  </div>
+
+  <div class="vignette"></div>
+</div>
+</body>
+</html>

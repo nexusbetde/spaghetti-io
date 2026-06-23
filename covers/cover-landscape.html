@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Cover Landscape 1920x1080</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { overflow: hidden; }
+.cover {
+  width: 1920px;
+  height: 1080px;
+  background: linear-gradient(135deg, #1a0a05 0%, #2d1810 40%, #3d2015 100%);
+  position: relative;
+  overflow: hidden;
+  font-family: 'Arial Black', sans-serif;
+}
+
+/* Checkerboard background */
+.checkerboard {
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  background-image:
+    linear-gradient(45deg, #c41e3a 25%, transparent 25%),
+    linear-gradient(-45deg, #c41e3a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #c41e3a 75%),
+    linear-gradient(-45deg, transparent 75%, #c41e3a 75%);
+  background-size: 80px 80px;
+  background-position: 0 0, 0 40px, 40px -40px, -40px 0;
+}
+
+/* Border */
+.border {
+  position: absolute;
+  inset: 12px;
+  border: 6px solid #c41e3a;
+  border-radius: 4px;
+  opacity: 0.7;
+}
+.border-inner {
+  position: absolute;
+  inset: 24px;
+  border: 2px solid #ffd700;
+  border-radius: 2px;
+  opacity: 0.4;
+}
+
+/* Decorative meatballs */
+.meatball {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #d4956a, #8b4513);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+}
+.meatball.golden {
+  background: radial-gradient(circle at 35% 35%, #fff4a3, #ffd700, #b8860b);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+}
+.meatball.chili {
+  background: radial-gradient(circle at 35% 35%, #ff6b6b, #c41e3a, #8b0000);
+  box-shadow: 0 0 15px rgba(196, 30, 58, 0.5);
+}
+
+/* Spaghetti snake */
+.snake {
+  position: absolute;
+}
+.segment {
+  position: absolute;
+  border-radius: 50%;
+  background: #f5deb3;
+  border: 2px solid #c99e6b;
+}
+.head {
+  background: #ffd700;
+  border-color: #b8860b;
+  z-index: 10;
+}
+.eye {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+  z-index: 11;
+}
+.pupil {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  background: #000;
+  border-radius: 50%;
+  z-index: 12;
+}
+
+/* Bot snake (red) */
+.bot-segment {
+  position: absolute;
+  border-radius: 50%;
+  background: #ff6b6b;
+  border: 2px solid #c41e3a;
+}
+.bot-head {
+  background: #ff4444;
+  border-color: #8b0000;
+  z-index: 8;
+}
+
+/* Bot snake (green) */
+.bot2-segment {
+  position: absolute;
+  border-radius: 50%;
+  background: #81c784;
+  border: 2px solid #4caf50;
+}
+.bot2-head {
+  background: #66bb6a;
+  border-color: #388e3c;
+  z-index: 8;
+}
+
+/* Bot snake (purple) */
+.bot3-segment {
+  position: absolute;
+  border-radius: 50%;
+  background: #ce93d8;
+  border: 2px solid #9c27b0;
+}
+.bot3-head {
+  background: #ba68c8;
+  border-color: #7b1fa2;
+  z-index: 8;
+}
+
+/* Rampage aura */
+.rampage-aura {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,34,34,0.4) 0%, transparent 70%);
+  border: 3px solid rgba(255,85,85,0.8);
+  animation: pulse 0.6s ease-in-out infinite alternate;
+  z-index: 5;
+}
+@keyframes pulse {
+  from { transform: scale(0.9); opacity: 0.6; }
+  to { transform: scale(1.2); opacity: 1; }
+}
+
+/* Title */
+.title {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 100;
+}
+.title h1 {
+  font-size: 160px;
+  color: #ffd700;
+  text-shadow:
+    0 0 20px rgba(255, 215, 0, 0.5),
+    4px 4px 0 #8b0000,
+    8px 8px 0 rgba(0,0,0,0.5);
+  letter-spacing: -4px;
+  line-height: 1;
+}
+.title .subtitle {
+  font-size: 42px;
+  color: #ffffff;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+  margin-top: 16px;
+  letter-spacing: 6px;
+}
+
+/* Vignette */
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* Rampage flash border */
+.rampage-border {
+  position: absolute;
+  inset: 0;
+  border: 18px solid rgba(255, 34, 34, 0.4);
+  z-index: 45;
+  animation: borderPulse 1s ease-in-out infinite alternate;
+}
+@keyframes borderPulse {
+  from { border-color: rgba(255, 34, 34, 0.3); }
+  to { border-color: rgba(255, 34, 34, 0.6); }
+}
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="checkerboard"></div>
+  <div class="border"></div>
+  <div class="border-inner"></div>
+  <div class="rampage-border"></div>
+
+  <!-- Meatballs scattered -->
+  <div class="meatball" style="width:28px;height:28px;top:180px;left:300px"></div>
+  <div class="meatball" style="width:22px;height:22px;top:750px;left:200px"></div>
+  <div class="meatball golden" style="width:32px;height:32px;top:400px;left:1600px"></div>
+  <div class="meatball" style="width:24px;height:24px;top:850px;left:1500px"></div>
+  <div class="meatball" style="width:20px;height:20px;top:300px;left:1750px"></div>
+  <div class="meatball golden" style="width:30px;height:30px;top:650px;left:350px"></div>
+  <div class="meatball chili" style="width:26px;height:26px;top:200px;left:1400px"></div>
+  <div class="meatball" style="width:18px;height:18px;top:900px;left:900px"></div>
+  <div class="meatball" style="width:26px;height:26px;top:130px;left:800px"></div>
+  <div class="meatball" style="width:22px;height:22px;top:950px;left:1200px"></div>
+
+  <!-- Player snake (curved, going right) with rampage aura -->
+  <div class="rampage-aura" style="top:435px;left:730px"></div>
+  <div class="segment" style="width:20px;height:20px;top:570px;left:520px"></div>
+  <div class="segment" style="width:21px;height:21px;top:560px;left:545px"></div>
+  <div class="segment" style="width:22px;height:22px;top:548px;left:570px"></div>
+  <div class="segment" style="width:23px;height:23px;top:534px;left:594px"></div>
+  <div class="segment" style="width:24px;height:24px;top:518px;left:616px"></div>
+  <div class="segment" style="width:25px;height:25px;top:500px;left:638px"></div>
+  <div class="segment" style="width:26px;height:26px;top:490px;left:662px"></div>
+  <div class="segment" style="width:27px;height:27px;top:480px;left:688px"></div>
+  <div class="segment" style="width:28px;height:28px;top:472px;left:714px"></div>
+  <div class="segment" style="width:28px;height:28px;top:466px;left:740px"></div>
+  <div class="segment head" style="width:36px;height:36px;top:458px;left:766px"></div>
+  <div class="eye" style="top:462px;left:790px"></div>
+  <div class="eye" style="top:474px;left:790px"></div>
+  <div class="pupil" style="top:464px;left:794px"></div>
+  <div class="pupil" style="top:476px;left:794px"></div>
+
+  <!-- Bot snake red (top right) -->
+  <div class="bot-segment" style="width:16px;height:16px;top:240px;left:1250px"></div>
+  <div class="bot-segment" style="width:17px;height:17px;top:235px;left:1275px"></div>
+  <div class="bot-segment" style="width:18px;height:18px;top:228px;left:1300px"></div>
+  <div class="bot-segment" style="width:20px;height:20px;top:220px;left:1328px"></div>
+  <div class="bot-segment" style="width:22px;height:22px;top:215px;left:1356px"></div>
+  <div class="bot-segment" style="width:24px;height:24px;top:212px;left:1384px"></div>
+  <div class="bot-segment bot-head" style="width:30px;height:30px;top:208px;left:1414px"></div>
+
+  <!-- Bot snake green (bottom left) -->
+  <div class="bot2-segment" style="width:16px;height:16px;top:780px;left:600px"></div>
+  <div class="bot2-segment" style="width:18px;height:18px;top:790px;left:626px"></div>
+  <div class="bot2-segment" style="width:20px;height:20px;top:798px;left:654px"></div>
+  <div class="bot2-segment" style="width:22px;height:22px;top:802px;left:684px"></div>
+  <div class="bot2-segment" style="width:24px;height:24px;top:800px;left:714px"></div>
+  <div class="bot2-segment bot2-head" style="width:28px;height:28px;top:795px;left:744px"></div>
+
+  <!-- Bot snake purple (right) -->
+  <div class="bot3-segment" style="width:14px;height:14px;top:620px;left:1400px"></div>
+  <div class="bot3-segment" style="width:16px;height:16px;top:610px;left:1424px"></div>
+  <div class="bot3-segment" style="width:18px;height:18px;top:598px;left:1450px"></div>
+  <div class="bot3-segment" style="width:20px;height:20px;top:585px;left:1478px"></div>
+  <div class="bot3-segment" style="width:22px;height:22px;top:575px;left:1506px"></div>
+  <div class="bot3-segment bot3-head" style="width:26px;height:26px;top:568px;left:1536px"></div>
+
+  <!-- Title -->
+  <div class="title">
+    <h1>SPAGHETTI.IO</h1>
+    <div class="subtitle">EAT. GROW. DOMINATE.</div>
+  </div>
+
+  <div class="vignette"></div>
+</div>
+</body>
+</html>
