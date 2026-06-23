@@ -48,7 +48,14 @@ const SELF_COLLISION_SAFE_SEGMENTS = 12;
 
 // Mobile boost button
 const BOOST_BTN_RADIUS = 55;
-const BOOST_BTN_MARGIN = 28;
+const BOOST_BTN_MARGIN_X = 28;
+const BOOST_BTN_MARGIN_Y = 60; // groesserer Abstand vom unteren Rand, damit
+                                // CG-Mobile-Preview-Cropping ihn nicht abschneidet
+
+// Mobile hold-to-boost: wenn der Finger laenger als HOLD_BOOST_MS irgendwo
+// auf der Karte gedrueckt bleibt (nicht auf dem Boost-Button), wird ebenfalls
+// Boost aktiviert. Der dedizierte Button bleibt zusaetzlich verfuegbar.
+const HOLD_BOOST_MS = 400;
 
 // Death
 const DEATH_ANIM_DURATION = 1400;
@@ -1022,8 +1029,8 @@ export default class GameScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   createMobileBoostButton() {
-    const cx = this.scale.width - BOOST_BTN_MARGIN - BOOST_BTN_RADIUS;
-    const cy = this.scale.height - BOOST_BTN_MARGIN - BOOST_BTN_RADIUS;
+    const cx = this.scale.width - BOOST_BTN_MARGIN_X - BOOST_BTN_RADIUS;
+    const cy = this.scale.height - BOOST_BTN_MARGIN_Y - BOOST_BTN_RADIUS;
 
     const pulseRing = this.add
       .circle(cx, cy, BOOST_BTN_RADIUS + 6, 0xff6b35, 0)

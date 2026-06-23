@@ -16,7 +16,7 @@ const messages = {
     tutorial_move: 'Move to steer',
     tutorial_boost: 'Hold for boost',
     tutorial_mobile_move: 'Drag anywhere to steer',
-    tutorial_mobile_boost: 'Hold the button for boost',
+    tutorial_mobile_boost: 'Hold finger or button for boost',
     tutorial_continue: 'Got it!',
     // HUD
     hud_score: 'Score',
@@ -54,7 +54,7 @@ const messages = {
     tutorial_move: 'Bewegen zum Lenken',
     tutorial_boost: 'Halten für Boost',
     tutorial_mobile_move: 'Wischen zum Lenken',
-    tutorial_mobile_boost: 'Knopf halten für Boost',
+    tutorial_mobile_boost: 'Finger oder Knopf halten für Boost',
     tutorial_continue: 'Los geht\'s!',
     hud_score: 'Score',
     hud_length: 'Länge',
