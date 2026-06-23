@@ -949,6 +949,9 @@ export default class GameScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   setupInput() {
+    // Mobile-Hold-Timer fuer Touch-Boost (gedrueckt halten = Boost)
+    this.holdBoostTimer = null;
+
     this.input.on('pointermove', (pointer) => {
       if (!this.inputEnabled) return;
       if (this.isPointerOverBoostButton(pointer)) return;
@@ -964,19 +967,27 @@ export default class GameScene extends Phaser.Scene {
       this.targetY = pointer.worldY;
       this.markPlayerHasMoved();
 
-      if (!this.isTouch && !this.gameOver) {
+      if (this.gameOver) return;
+
+      if (this.isTouch) {
+        // Mobile: gedrueckt halten >400ms aktiviert Boost
+        this.scheduleHoldBoost();
+      } else {
+        // Desktop: Klick = sofort Boost
         this.setPlayerBoosting(true);
       }
     });
 
     this.input.on('pointerup', () => {
-      if (!this.isTouch && this.player) {
+      this.cancelHoldBoost();
+      if (this.player) {
         this.setPlayerBoosting(false);
       }
     });
 
     this.input.on('pointerout', () => {
-      if (!this.isTouch && this.player) {
+      this.cancelHoldBoost();
+      if (this.player) {
         this.setPlayerBoosting(false);
       }
     });
@@ -994,6 +1005,30 @@ export default class GameScene extends Phaser.Scene {
       this.setPlayerBoosting(true);
     });
     shiftKey.on('up', () => this.setPlayerBoosting(false));
+  }
+
+  /**
+   * Plant einen verzoegerten Boost an. Wenn der Finger nach HOLD_BOOST_MS
+   * immer noch gedrueckt ist (egal wo, nur nicht auf dem Boost-Button),
+   * aktiviert sich Boost. Kurzer Tap = nur Richtungsaenderung, kein Boost.
+   */
+  scheduleHoldBoost() {
+    if (this.holdBoostTimer !== null) {
+      this.cancelHoldBoost();
+    }
+    this.holdBoostTimer = this.time.delayedCall(HOLD_BOOST_MS, () => {
+      this.holdBoostTimer = null;
+      if (this.input.activePointer.isDown && !this.gameOver && this.player) {
+        this.setPlayerBoosting(true);
+      }
+    });
+  }
+
+  cancelHoldBoost() {
+    if (this.holdBoostTimer !== null) {
+      this.holdBoostTimer.remove();
+      this.holdBoostTimer = null;
+    }
   }
 
   /**
