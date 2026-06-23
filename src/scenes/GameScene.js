@@ -579,9 +579,9 @@ export default class GameScene extends Phaser.Scene {
         kills: this.killCount,
         mealsEaten: this.mealsEaten,
         survivedMs: this.hasMoved ? this.time.now - this.gameStartTime : 0,
-        // Revive nur einmal pro Spielsession und nur wenn SDK verfuegbar
-        canRevive: !this.hasUsedRevive && this.cg.isAvailable(),
-        onRevive: () => this.requestRevive(),
+        // Revive deaktiviert fuer CrazyGames Basic Launch (keine Ads erlaubt)
+        canRevive: false,
+        onRevive: null,
         onRestart: () => this.restart()
       });
     });
