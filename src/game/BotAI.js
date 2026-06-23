@@ -17,8 +17,8 @@ export const BOT_PALETTES = [
 ];
 
 // Bot-Konstanten
-const BOT_BASE_SPEED = 3.12;     // 20% schneller (war 2.6), aber ~19% langsamer als Player (3.84)
-const BOT_BOOST_SPEED = 5.4;     // unbenutzt — Boost ist deaktiviert
+const BOT_BASE_SPEED = 2.8;      // Mid-Wert: ~18% langsamer als Player base (3.4), war 3.12
+const BOT_BOOST_SPEED = 5.7;     // unbenutzt — Boost ist deaktiviert
 const WALL_AVOID_MARGIN = 216;   // 20% groesser (war 180), da hoehere Speeds = weniger Reaktionszeit
 const SNAKE_AVOID_RADIUS = 192;  // 20% groesser (war 160), da hoehere Speeds = weniger Reaktionszeit
 const HEAD_REPULSION_BOOST = 1.6; // fremde Koepfe sind gefaehrlicher als Koerper-Segmente

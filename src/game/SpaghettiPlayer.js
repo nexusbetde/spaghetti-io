@@ -18,8 +18,8 @@ export default class SpaghettiPlayer {
     this.headY = y;
 
     // === Bewegung ===
-    this.baseSpeed = options.baseSpeed ?? 3.84;  // 20% schneller als zuvor (3.2)
-    this.boostSpeed = options.boostSpeed ?? 7.2; // 20% schneller als zuvor (6.0)
+    this.baseSpeed = options.baseSpeed ?? 3.4;   // weicher zwischen Original (3.2) und 20%-Bump (3.84)
+    this.boostSpeed = options.boostSpeed ?? 7.6; // Boost merklich flotter (Ratio 2.24x vs Base)
     this.sprintSpeed = options.sprintSpeed ?? 10.35; // Mitte zwischen Boost und Rampage, fuer Pepperoncini-Powerup
     this.rampageSpeed = options.rampageSpeed ?? 13.5; // ~1.9x boost — Komet-Modus waehrend Chili-Rampage
     this.isBoosting = false;
