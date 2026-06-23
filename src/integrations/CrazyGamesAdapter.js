@@ -104,4 +104,32 @@ export default class CrazyGamesAdapter {
   isAvailable() {
     return !!this.sdk;
   }
+
+  /**
+   * Registriert einen Listener fuer die SDK-Settings (Mute-Audio etc.).
+   * Wird sofort einmal mit dem Initial-State aufgerufen.
+   *
+   * @param callback - (muteAudio: boolean) => void
+   */
+  onMuteAudioChange(callback) {
+    if (!this.sdk?.game) {
+      // SDK nicht da — Initial-State immer false, kein Listener moeglich
+      try { callback(false); } catch (e) {}
+      return;
+    }
+    // Initial-State sofort liefern
+    try {
+      callback(!!this.sdk.game.settings?.muteAudio);
+    } catch (e) {
+      callback(false);
+    }
+    // Aenderungen abonnieren
+    try {
+      this.sdk.game.addSettingsChangeListener?.((settings) => {
+        try { callback(!!settings?.muteAudio); } catch (e) {}
+      });
+    } catch (e) {
+      // ignore — Listener-Registrierung fehlgeschlagen, aber wir haben den Initial-State
+    }
+  }
 }

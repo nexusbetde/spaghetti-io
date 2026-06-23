@@ -20,7 +20,8 @@ export default class SoundManager {
   constructor() {
     this.ctx = null;
     this.masterGain = null;
-    this.muted = this.loadMuted();
+    this.userMuted = this.loadMuted();  // User-Praeferenz via Mute-Button
+    this.sdkMuted = false;              // CrazyGames SDK kann Audio erzwungen muten
   }
 
   loadMuted() {
@@ -33,7 +34,7 @@ export default class SoundManager {
 
   saveMuted() {
     try {
-      localStorage.setItem(STORAGE_KEY, this.muted ? '1' : '0');
+      localStorage.setItem(STORAGE_KEY, this.userMuted ? '1' : '0');
     } catch (e) {
       // ignore
     }
@@ -70,12 +71,30 @@ export default class SoundManager {
   }
 
   setMuted(muted) {
-    this.muted = muted;
+    this.userMuted = muted;
     this.saveMuted();
   }
 
   isMuted() {
-    return this.muted;
+    // Fuer das UI: gibt nur die User-Praeferenz zurueck
+    // (sonst wuerde der Button verwirrend aussehen wenn die SDK silent-mutet)
+    return this.userMuted;
+  }
+
+  /**
+   * Wird von der CrazyGames-Integration aufgerufen wenn die Plattform Audio
+   * deaktiviert haben moechte (z.B. waehrend Ads laufen).
+   */
+  setSdkMuted(muted) {
+    this.sdkMuted = muted;
+  }
+
+  /**
+   * Effektive Stummschaltung: TRUE wenn User ODER SDK mutet.
+   * Wird intern fuer alle Sound-Wiedergaben benutzt.
+   */
+  isEffectivelyMuted() {
+    return this.userMuted || this.sdkMuted;
   }
 
   // ---------------------------------------------------------------------------
@@ -384,7 +403,7 @@ export default class SoundManager {
    * Versteckt die three guards (muted / no-ctx / suspended).
    */
   audioReady() {
-    if (this.muted) return null;
+    if (this.isEffectivelyMuted()) return null;
     const ctx = this.ensureContext();
     if (!ctx || ctx.state === 'suspended') return null;
     return ctx;

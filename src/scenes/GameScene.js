@@ -74,6 +74,9 @@ export default class GameScene extends Phaser.Scene {
     // === CrazyGames SDK ===
     this.cg = new CrazyGamesAdapter();
 
+    // Plattform-Mute (CG mutet z.B. waehrend Ads) an unseren SoundManager weiterleiten
+    this.cg.onMuteAudioChange((muted) => this.sfx.setSdkMuted(muted));
+
     // === Hintergrund (fuellt die GANZE Welt, nicht nur den Viewport) ===
     this.drawCheckerboard();
     this.drawBackgroundDecorations();
