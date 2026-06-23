@@ -71,31 +71,66 @@ export default class CrazyGamesAdapter {
    * Fordert ein Rewarded-Video an. Spieler bekommt Belohnung wenn er das
    * Video ZU ENDE schaut. Resolved zu true wenn voll geschaut, false sonst
    * (uebersprungen, Fehler, kein Inventar).
+   *
+   * SDK v2 nutzt Callback-API mit { adStarted, adFinished, adError } —
+   * wir verpacken sie in ein Promise, damit der Aufrufer ein einfaches
+   * await machen kann.
    */
-  async requestRewardedAd() {
-    if (!this.sdk?.ad?.requestAd) return false;
-    try {
-      // SDK API: requestAd nimmt den Ad-Type als String, resolved bei
-      // 'adFinished' und rejected bei 'adError' / 'adStartFailed'
-      await this.sdk.ad.requestAd('rewarded');
-      return true;
-    } catch (e) {
-      return false;
-    }
+  requestRewardedAd() {
+    if (!this.sdk?.ad?.requestAd) return Promise.resolve(false);
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+
+      try {
+        this.sdk.ad.requestAd('rewarded', {
+          adStarted: () => {
+            // Ad laeuft jetzt — Game wurde schon via gameplayStop() pausiert
+          },
+          adFinished: () => finish(true),   // Bis zum Ende geschaut -> Belohnung
+          adError: () => finish(false)      // Skipped, Adblock, kein Inventar...
+        });
+      } catch (e) {
+        finish(false);
+      }
+
+      // Safety-Net: falls die SDK aus irgendeinem Grund keinen Callback feuert,
+      // nicht ewig haengen bleiben (max 35s)
+      setTimeout(() => finish(false), 35000);
+    });
   }
 
   /**
    * Fordert ein Midgame-Video an. Sollte zwischen Gameplay-Phasen kommen
    * (z.B. nach dem Tod, bevor Play Again).
    */
-  async requestMidgameAd() {
-    if (!this.sdk?.ad?.requestAd) return false;
-    try {
-      await this.sdk.ad.requestAd('midgame');
-      return true;
-    } catch (e) {
-      return false;
-    }
+  requestMidgameAd() {
+    if (!this.sdk?.ad?.requestAd) return Promise.resolve(false);
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+
+      try {
+        this.sdk.ad.requestAd('midgame', {
+          adFinished: () => finish(true),
+          adError: () => finish(false)
+        });
+      } catch (e) {
+        finish(false);
+      }
+
+      setTimeout(() => finish(false), 35000);
+    });
   }
 
   /**
