@@ -169,6 +169,8 @@ export default class GameScene extends Phaser.Scene {
           this.showGoalBanner();
           // CrazyGames: aktive Gameplay-Phase startet
           this.cg.gameplayStart();
+          // Fullscreen-Button auf Mobile anzeigen
+          this.showFullscreenButton();
         }
       });
     } else {
@@ -177,6 +179,8 @@ export default class GameScene extends Phaser.Scene {
       this.showGoalBanner();
       // CrazyGames: aktive Gameplay-Phase startet
       this.cg.gameplayStart();
+      // Fullscreen-Button auf Mobile anzeigen
+      this.showFullscreenButton();
     }
 
     // Orientation-Watcher (nur fuer Touch-Geraete): zeigt 'bitte drehen'
@@ -1581,6 +1585,90 @@ export default class GameScene extends Phaser.Scene {
           line2.destroy();
         }
       });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fullscreen-Button (Mobile) — Tap to go fullscreen
+  // ---------------------------------------------------------------------------
+
+  showFullscreenButton() {
+    // Nur auf Touch-Geraeten anzeigen UND nur wenn Fullscreen API verfuegbar
+    if (!this.isTouch) return;
+    if (!document.documentElement.requestFullscreen &&
+        !document.documentElement.webkitRequestFullscreen) return;
+    // Nicht anzeigen wenn bereits im Fullscreen
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+
+    const w = this.scale.width;
+    const btnX = w / 2;
+    const btnY = this.scale.height - 50;
+
+    // Hintergrund-Pill
+    const bg = this.add
+      .rectangle(btnX, btnY, 240, 48, 0x000000, 0.7)
+      .setDepth(55)
+      .setScrollFactor(0)
+      .setStrokeStyle(2, 0xffffff, 0.6)
+      .setInteractive({ useHandCursor: true });
+
+    // Fullscreen-Icon + Text
+    const label = this.add
+      .text(btnX, btnY, '\u26F6  ' + t('fullscreen_button'), {
+        fontFamily: 'Arial Black, sans-serif',
+        fontSize: '18px',
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 3
+      })
+      .setOrigin(0.5)
+      .setDepth(56)
+      .setScrollFactor(0);
+
+    // Sanftes Pulsieren um Aufmerksamkeit zu ziehen
+    this.tweens.add({
+      targets: [bg, label],
+      scale: { from: 1, to: 1.05 },
+      duration: 800,
+      yoyo: true,
+      repeat: 3,
+      ease: 'Sine.easeInOut'
+    });
+
+    bg.on('pointerdown', () => {
+      // Fullscreen anfordern
+      const el = document.documentElement;
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
+      }
+
+      // Button entfernen
+      this.tweens.add({
+        targets: [bg, label],
+        alpha: 0,
+        duration: 300,
+        onComplete: () => {
+          bg.destroy();
+          label.destroy();
+        }
+      });
+    });
+
+    // Nach 8 Sekunden automatisch ausblenden (stoert nicht im Gameplay)
+    this.time.delayedCall(8000, () => {
+      if (bg.active) {
+        this.tweens.add({
+          targets: [bg, label],
+          alpha: 0,
+          duration: 500,
+          onComplete: () => {
+            bg.destroy();
+            label.destroy();
+          }
+        });
+      }
     });
   }
 

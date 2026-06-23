@@ -56,6 +56,29 @@ export default class CrazyGamesAdapter {
   }
 
   /**
+   * Loading-Start signalisieren (CrazyGames SDK Best Practice).
+   * Sollte ganz am Anfang aufgerufen werden bevor Assets laden.
+   */
+  loadingStart() {
+    try {
+      this.sdk?.game?.sdkGameLoadingStart?.();
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  /**
+   * Loading-Ende signalisieren. Aufrufen wenn das Spiel spielbereit ist.
+   */
+  loadingStop() {
+    try {
+      this.sdk?.game?.sdkGameLoadingStop?.();
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  /**
    * 'Happy time' — wird beim Erreichen besonderer Erfolge gerufen (Highscore,
    * Boss besiegt, Rampage). Die Plattform feiert (Konfetti etc.).
    */
