@@ -25,7 +25,7 @@ export default class SpaghettiPlayer {
     this.isBoosting = false;
 
     // === Koerper-Konfiguration ===
-    this.segmentCount = options.segmentCount ?? 30;
+    this.segmentCount = options.segmentCount ?? 12;
     this.segmentSpacing = options.segmentSpacing ?? 4; // History-Index-Abstand zwischen Segmenten
     this.headRadius = options.headRadius ?? 16;
     this.bodyRadius = options.bodyRadius ?? 13;
@@ -438,7 +438,7 @@ export default class SpaghettiPlayer {
     if (options.segmentCount !== undefined) {
       this.segmentCount = options.segmentCount;
     } else {
-      this.segmentCount = 30;
+      this.segmentCount = 12;
     }
 
     // History neu auslegen, Koerper nach links vom Kopf

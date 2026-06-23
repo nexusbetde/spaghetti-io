@@ -185,6 +185,13 @@ export default class GameScene extends Phaser.Scene {
     this.orientationListener = () => this.checkOrientation();
     window.addEventListener('resize', this.orientationListener);
     window.addEventListener('orientationchange', this.orientationListener);
+    // screen.orientation API (iOS 16.4+, alle anderen Browser)
+    if (screen.orientation) {
+      screen.orientation.addEventListener('change', this.orientationListener);
+    }
+    // iOS Safari in iframes (CrazyGames) feuert resize/orientationchange
+    // manchmal nicht zuverlaessig — Polling-Fallback alle 500ms
+    this.orientationPollTimer = setInterval(() => this.checkOrientation(), 500);
     // Initial-Check
     this.checkOrientation();
 
@@ -192,6 +199,10 @@ export default class GameScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       window.removeEventListener('resize', this.orientationListener);
       window.removeEventListener('orientationchange', this.orientationListener);
+      if (screen.orientation) {
+        screen.orientation.removeEventListener('change', this.orientationListener);
+      }
+      clearInterval(this.orientationPollTimer);
     });
   }
 
@@ -1059,9 +1070,17 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const isPortrait = h > w;
+    // Mehrere Methoden um Portrait zu erkennen (iOS Safari iframe ist unzuverlaessig)
+    let isPortrait;
+    if (screen.orientation && screen.orientation.type) {
+      // Moderne API (iOS 16.4+, Chrome, Firefox)
+      isPortrait = screen.orientation.type.startsWith('portrait');
+    } else {
+      // Fallback: window.innerWidth/Height (+ screen dimensions als Backup)
+      const w = window.innerWidth || window.screen.width;
+      const h = window.innerHeight || window.screen.height;
+      isPortrait = h > w;
+    }
 
     if (isPortrait && !this.orientationOverlay) {
       this.showOrientationOverlay();
@@ -1170,6 +1189,15 @@ export default class GameScene extends Phaser.Scene {
 
     // Spawn-Schongraefrist neu starten damit Spieler nicht direkt stirbt
     this.spawnTime = this.time.now;
+
+    // iOS Safari iframe-Fix: Input-Manager und Pointer-State explizit
+    // zuruecksetzen, da Safari nach Rotation im iframe manchmal keine
+    // Pointer-Events mehr durchlaesst bis ein Reset passiert.
+    if (this.input && this.input.manager) {
+      this.input.manager.enabled = true;
+    }
+    // Force Phaser scale refresh — iOS meldet neue Viewport-Groesse verzoegert
+    this.scale.refresh();
 
     // Gameplay-Signal an CrazyGames falls noch nicht Game-Over
     if (!this.gameOver) {
