@@ -49,7 +49,8 @@ const messages = {
     game_over_revive: 'Watch ad to revive',
     game_over_revive_failed: 'Ad not available',
     rotate_title: 'Please rotate your device',
-    rotate_subtitle: 'Spaghetti.io is best in landscape mode'
+    rotate_subtitle: 'Spaghetti.io is best in landscape mode',
+    fullscreen_button: 'FULLSCREEN'
   },
   de: {
     tutorial_title: 'Steuerung',
@@ -84,7 +85,8 @@ const messages = {
     game_over_revive: 'Werbung schauen für Revive',
     game_over_revive_failed: 'Keine Werbung verfügbar',
     rotate_title: 'Bitte drehe dein Gerät',
-    rotate_subtitle: 'Spaghetti.io spielt sich am besten im Querformat'
+    rotate_subtitle: 'Spaghetti.io spielt sich am besten im Querformat',
+    fullscreen_button: 'VOLLBILD'
   }
 };
 
