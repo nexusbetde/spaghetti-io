@@ -16,24 +16,43 @@ Dieser Guide bringt dich vom GitHub-Repo zur Live-Veröffentlichung auf
 CrazyGames akzeptiert **statische HTML5-Pakete als ZIP**. Wichtig: `index.html`
 muss im **Root des ZIP** liegen, nicht in einem Unterordner.
 
-### Variante A: GitHub Web-UI
+### Variante A: GitHub Web-UI (langsamer aber einfacher)
 
 1. Im GitHub-Repo auf **Code** → **Download ZIP** klicken
-2. Das geladene ZIP enthält einen Ordner `spaghetti-io-main/`
-3. **Entpacke das ZIP**, gehe in den Ordner, markiere **alle Dateien**
-   (index.html, README.md, src/, .github/, etc.) und packe sie **erneut**
-   zu einem ZIP — diesmal ohne umschließenden Ordner
+2. Das geladene ZIP enthält einen Ordner `spaghetti-io-main/` mit ALLEN Dateien
+   (inklusive `.github/`, `.kiro/`, `.gitignore`, `DEPLOYMENT.md`, `README.md`)
+3. **Entpacke das ZIP**
+4. Erstelle einen neuen Ordner, kopier nur diese zwei Dinge rein:
+   - `index.html`
+   - `src/` (komplett mit allen Unterordnern)
+5. Packe diesen neuen Ordner-Inhalt zu einem ZIP (NICHT den Ordner selbst,
+   sondern seinen Inhalt — `index.html` muss im ZIP-Root liegen)
 
-### Variante B: lokales Terminal
+### Variante B: lokales Terminal (sauberer, schneller)
 
 ```bash
 git clone https://github.com/nexusbetde/spaghetti-io.git
 cd spaghetti-io
-# Optional: .git und .github raus (spart Platz)
-zip -r spaghetti-io.zip . -x ".git/*" "*.DS_Store"
+
+# Nur die Runtime-Dateien zippen — KEINE Git-/CI-/Doku-Sachen
+zip -r spaghetti-io.zip index.html src/
 ```
 
-Endgröße: ca. 25-40 KB (winzig, weil Phaser per CDN geladen wird).
+Das ergibt ein winziges ZIP von **~25 KB** das genau die Dateien enthält
+die CrazyGames braucht. Nichts überflüssiges.
+
+### Was definitiv NICHT ins ZIP gehört
+
+| Pfad | Warum es ausgeschlossen werden muss |
+|---|---|
+| `.git/` | Git-Datenbank, oft mehrere MB |
+| `.github/` | GitHub Actions Workflow (für GitHub Pages, nicht für CG) |
+| `.kiro/` | Interne Doku |
+| `.gitignore` | Egal aber Müll |
+| `DEPLOYMENT.md`, `README.md` | Diese Doku-Files braucht das Spiel nicht |
+
+Falls du Variante A nutzt: einfach `index.html` + `src/` Ordner separat
+markieren und zippen, alles andere ignorieren.
 
 ---
 
