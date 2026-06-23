@@ -178,10 +178,27 @@ export default class GameScene extends Phaser.Scene {
       // CrazyGames: aktive Gameplay-Phase startet
       this.cg.gameplayStart();
     }
+
+    // Orientation-Watcher (nur fuer Touch-Geraete): zeigt 'bitte drehen'
+    // Overlay an wenn der Bildschirm hochkant ist
+    this.orientationOverlay = null;
+    this.orientationListener = () => this.checkOrientation();
+    window.addEventListener('resize', this.orientationListener);
+    window.addEventListener('orientationchange', this.orientationListener);
+    // Initial-Check
+    this.checkOrientation();
+
+    // Beim Scene-Shutdown (Restart) Listener wieder abmelden
+    this.events.once('shutdown', () => {
+      window.removeEventListener('resize', this.orientationListener);
+      window.removeEventListener('orientationchange', this.orientationListener);
+    });
   }
 
   update() {
     if (this.gameOver) return;
+    // Pause-Modus: Gerät hochkant -> Spiel friert ein bis gedreht
+    if (this.orientationOverlay) return;
 
     // 1) Spieler bewegen
     this.player.update(this.targetX, this.targetY, this.worldBounds);
@@ -1028,6 +1045,135 @@ export default class GameScene extends Phaser.Scene {
     if (this.holdBoostTimer !== null) {
       this.holdBoostTimer.remove();
       this.holdBoostTimer = null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Orientation-Lock: Spiel pausiert bei Hochkant-Geraet, zeigt 'rotate'-Overlay
+  // ---------------------------------------------------------------------------
+
+  checkOrientation() {
+    // Desktop: kein Orientation-Lock noetig
+    if (!this.isTouch) {
+      if (this.orientationOverlay) this.hideOrientationOverlay();
+      return;
+    }
+
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const isPortrait = h > w;
+
+    if (isPortrait && !this.orientationOverlay) {
+      this.showOrientationOverlay();
+    } else if (!isPortrait && this.orientationOverlay) {
+      this.hideOrientationOverlay();
+    }
+  }
+
+  showOrientationOverlay() {
+    const { width, height } = this.scale;
+    const objects = [];
+
+    // Verdunkelnder Backdrop, blockt Klicks dahinter
+    const bg = this.add
+      .rectangle(width / 2, height / 2, width, height, 0x000000, 0.92)
+      .setDepth(300)
+      .setScrollFactor(0)
+      .setInteractive();
+    objects.push(bg);
+
+    // Telefon-Icon: Rounded Rect mit Screen + Home-Button
+    const phone = this.add.graphics().setDepth(301).setScrollFactor(0);
+    phone.fillStyle(0xffffff, 1);
+    phone.fillRoundedRect(-40, -72, 80, 144, 12);
+    phone.fillStyle(0x111111, 1);
+    phone.fillRoundedRect(-32, -56, 64, 112, 6);
+    // Speaker oben
+    phone.fillStyle(0xaaaaaa, 1);
+    phone.fillRoundedRect(-10, -65, 20, 3, 2);
+    // Home-Button unten
+    phone.fillStyle(0xaaaaaa, 1);
+    phone.fillCircle(0, 62, 5);
+    phone.setPosition(width / 2, height / 2 - 40);
+    objects.push(phone);
+
+    // Rotation-Animation (hin- und herwippen 0° -> 90° -> 0°)
+    this.tweens.add({
+      targets: phone,
+      angle: 90,
+      duration: 1400,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Cubic.easeInOut'
+    });
+
+    // Curved Arrow daneben — deutet die Drehrichtung an
+    const arrow = this.add.graphics().setDepth(301).setScrollFactor(0);
+    arrow.lineStyle(6, 0xffd700, 1);
+    arrow.beginPath();
+    arrow.arc(0, 0, 120, Phaser.Math.DegToRad(-160), Phaser.Math.DegToRad(-30), false);
+    arrow.strokePath();
+    // Pfeilspitze
+    arrow.fillStyle(0xffd700, 1);
+    arrow.fillTriangle(95, -50, 130, -65, 110, -25);
+    arrow.setPosition(width / 2, height / 2 - 30);
+    objects.push(arrow);
+
+    // Text: Titel
+    const title = this.add
+      .text(width / 2, height / 2 + 120, t('rotate_title'), {
+        fontFamily: 'Arial Black, sans-serif',
+        fontSize: '38px',
+        color: '#ffd700',
+        stroke: '#000000',
+        strokeThickness: 6,
+        align: 'center',
+        wordWrap: { width: width - 60 }
+      })
+      .setOrigin(0.5)
+      .setDepth(301)
+      .setScrollFactor(0);
+    objects.push(title);
+
+    // Untertitel
+    const subtitle = this.add
+      .text(width / 2, height / 2 + 175, t('rotate_subtitle'), {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '20px',
+        color: '#ffffff',
+        align: 'center',
+        wordWrap: { width: width - 60 }
+      })
+      .setOrigin(0.5)
+      .setDepth(301)
+      .setScrollFactor(0);
+    objects.push(subtitle);
+
+    this.orientationOverlay = { objects };
+
+    // Aktive Inputs/Boost abbrechen — Spiel friert komplett ein
+    this.cancelHoldBoost?.();
+    if (this.player && !this.player.isDead) {
+      this.player.setBoosting(false);
+    }
+    // CrazyGames signalisieren: Gameplay pausiert (gut fuer Ad-Logik)
+    this.cg?.gameplayStop();
+  }
+
+  hideOrientationOverlay() {
+    if (!this.orientationOverlay) return;
+    for (const obj of this.orientationOverlay.objects) {
+      this.tweens.killTweensOf(obj);
+      obj.destroy();
+    }
+    this.orientationOverlay = null;
+
+    // Spawn-Schongraefrist neu starten damit Spieler nicht direkt stirbt
+    this.spawnTime = this.time.now;
+
+    // Gameplay-Signal an CrazyGames falls noch nicht Game-Over
+    if (!this.gameOver) {
+      this.cg?.gameplayStart();
     }
   }
 

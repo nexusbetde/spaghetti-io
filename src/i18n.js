@@ -47,7 +47,9 @@ const messages = {
     game_over_new_best: 'NEW BEST!',
     game_over_play_again: 'Play Again',
     game_over_revive: 'Watch ad to revive',
-    game_over_revive_failed: 'Ad not available'
+    game_over_revive_failed: 'Ad not available',
+    rotate_title: 'Please rotate your device',
+    rotate_subtitle: 'Spaghetti.io is best in landscape mode'
   },
   de: {
     tutorial_title: 'Steuerung',
@@ -80,7 +82,9 @@ const messages = {
     game_over_new_best: 'NEUER REKORD!',
     game_over_play_again: 'Nochmal spielen',
     game_over_revive: 'Werbung schauen für Revive',
-    game_over_revive_failed: 'Keine Werbung verfügbar'
+    game_over_revive_failed: 'Keine Werbung verfügbar',
+    rotate_title: 'Bitte drehe dein Gerät',
+    rotate_subtitle: 'Spaghetti.io spielt sich am besten im Querformat'
   }
 };
 
