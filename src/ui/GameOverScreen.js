@@ -301,11 +301,13 @@ export default class GameOverScreen {
       bg.setScale(0.95);
       text.setScale(0.95);
     });
-    bg.on('pointerup', () => {
+    bg.on('pointerup', async () => {
       bg.setScale(1);
       text.setScale(1);
       // UI-Click-Sound
       this.scene.sfx?.playUIClick();
+      // Midgame-Ad zwischen Sessions (CrazyGames SDK)
+      await this.scene.cg?.requestMidgameAd();
       if (typeof this.onRestart === 'function') {
         this.onRestart();
       }
