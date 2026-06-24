@@ -1,7 +1,12 @@
 import GameScene from './scenes/GameScene.js';
+import CrazyGamesAdapter from './integrations/CrazyGamesAdapter.js';
 
 // Phaser wird global aus dem CDN geladen (siehe index.html)
 // Daher hier kein "import Phaser from ..." noetig
+
+// CrazyGames: Loading-Phase signalisieren
+const cg = new CrazyGamesAdapter();
+cg.loadingStart();
 
 // Phaser-Konfiguration: das "Setup-Rezept" fuer unser Spiel
 const config = {
@@ -23,7 +28,15 @@ const config = {
   },
 
   // Die Scenes (Spielszenen) — wir haben aktuell nur eine
-  scene: [GameScene]
+  scene: [GameScene],
+
+  // Callback wenn Phaser bereit ist
+  callbacks: {
+    postBoot: () => {
+      // CrazyGames: Loading beendet, Spiel ist spielbereit
+      cg.loadingStop();
+    }
+  }
 };
 
 // Spiel starten
